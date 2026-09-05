@@ -234,7 +234,8 @@ export default function TabPage() {
       // Upload QR Image if a new file is selected
       if (editQrFile) {
         const fileExt = editQrFile.name.split(".").pop();
-        const fileName = `${currentMemberId}-${Math.random().toString(36.substring(2))}.${fileExt}`;
+        const randomStr = Math.random().toString(36).substring(2);
+        const fileName = `${currentMemberId}-${randomStr}.${fileExt}`;
         const filePath = `${fileName}`;
 
         const { error: uploadError } = await supabase.storage
