@@ -32,17 +32,10 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="min-h-screen bg-[#050506] text-[#EDEDEF] antialiased selection:bg-[#5E6AD2]/30 selection:text-white relative">
-        {/* Layer 1: Top Base Radial */}
         <div className="fixed inset-0 pointer-events-none z-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-15%,rgba(94,106,210,0.18),rgba(5,5,6,0)_80%)]" />
-
-        {/* Layer 2: Animated Ambient Light Pools */}
         <div className="fixed top-[-10%] left-[20%] w-[500px] h-[500px] bg-[#5E6AD2]/12 rounded-full blur-[140px] pointer-events-none animate-blob-slow z-0" />
         <div className="fixed top-[45%] right-[-10%] w-[420px] h-[420px] bg-purple-600/10 rounded-full blur-[130px] pointer-events-none animate-blob-slow-reverse z-0" />
-
-        {/* Layer 3: Technical Grid Pattern */}
         <div className="fixed inset-0 linear-grid pointer-events-none opacity-40 z-0" />
-
-        {/* Page Content */}
         <div className="relative z-10">{children}</div>
       </body>
     </html>

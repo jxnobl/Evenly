@@ -13,7 +13,6 @@ body {
   overflow-x: hidden;
 }
 
-/* Linear Technical Grid */
 .linear-grid {
   background-image: linear-gradient(
       to right,
@@ -24,10 +23,10 @@ body {
   background-size: 56px 56px;
 }
 
-/* Subtle Hairline Border Gradient */
 .linear-border-top {
   position: relative;
 }
+
 .linear-border-top::before {
   content: "";
   position: absolute;
@@ -43,18 +42,20 @@ body {
   );
 }
 
-/* Scrollbar polish */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: #050506;
 }
+
 ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 9999px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
