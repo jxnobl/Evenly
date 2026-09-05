@@ -68,6 +68,7 @@ export default function TabPage() {
 
   const [showHistory, setShowHistory] = useState(true);
   const [activeSettlement, setActiveSettlement] = useState<Settlement | null>(null);
+  const [upscaledQrUrl, setUpscaledQrUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [settling, setSettling] = useState(false);
 
@@ -1191,15 +1192,22 @@ export default function TabPage() {
               {(hasCustomQr || hasPaymentDetails) && (
                 <div className="bg-white p-3 rounded-2xl w-fit mx-auto shadow-inner border border-black/5">
                   {hasCustomQr ? (
-                    <div className="w-40 h-40 rounded-xl overflow-hidden flex items-center justify-center bg-white">
+                    <div 
+                      onClick={() => setUpscaledQrUrl(creditor!.qr_image_url!)}
+                      className="w-40 h-40 rounded-xl overflow-hidden flex items-center justify-center bg-white cursor-zoom-in relative group"
+                      title="Click to upscale QR code"
+                    >
                       <img 
                         src={creditor!.qr_image_url!} 
                         alt="Custom QR" 
-                        className="w-full h-full object-contain"
+                        className="w-full h-full object-contain group-hover:scale-105 transition duration-200"
                         onError={(e) => {
                           console.error("Failed to load QR image:", creditor?.qr_image_url);
                         }}
                       />
+                      <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 flex items-center justify-center transition duration-200">
+                        <span className="text-[10px] font-bold bg-black/75 text-white px-2 py-1 rounded-md">Click to Zoom</span>
+                      </div>
                     </div>
                   ) : (
                     <QRCodeSVG
@@ -1240,6 +1248,28 @@ export default function TabPage() {
           </div>
         );
       })()}
+
+      {/* Upscaled QR Lightbox Modal */}
+      {upscaledQrUrl && (
+        <div 
+          onClick={() => setUpscaledQrUrl(null)}
+          className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-md flex items-center justify-center p-5 animate-fade-in cursor-zoom-out"
+        >
+          <div className="relative w-full max-w-sm aspect-square bg-white rounded-3xl p-4 shadow-2xl flex items-center justify-center">
+            <button 
+              onClick={() => setUpscaledQrUrl(null)}
+              className="absolute -top-3 -right-3 bg-white dark:bg-[#121824] text-slate-800 dark:text-white p-2 rounded-full shadow-lg border border-black/10 dark:border-white/10 active:scale-90 transition"
+            >
+              <X size={20} />
+            </button>
+            <img 
+              src={upscaledQrUrl} 
+              alt="Upscaled Custom QR" 
+              className="w-full h-full object-contain rounded-xl"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Add/Edit Expense Modal */}
       {isExpenseModalOpen && (
