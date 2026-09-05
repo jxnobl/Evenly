@@ -12,6 +12,8 @@ import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import { supabase } from "@/lib/supabase";
 
+export const dynamic = "force-dynamic";
+
 interface TabRecord {
   id: string;
   slug: string;
@@ -25,8 +27,8 @@ interface FullMember extends Member {
 
 export default function TabPage() {
   const routeParams = useParams();
-  const slug = Array.isArray(routeParams?.slug) 
-    ? routeParams.slug[0] 
+  const slug = Array.isArray(routeParams?.slug)
+    ? routeParams.slug[0]
     : (routeParams?.slug as string) || "";
 
   const [tab, setTab] = useState<TabRecord | null>(null);
@@ -43,12 +45,12 @@ export default function TabPage() {
   const [copied, setCopied] = useState(false);
   const [settling, setSettling] = useState(false);
 
-  // Profile setup state
+  // Payment profile state
   const [editPaymentMethod, setEditPaymentMethod] = useState("GCash");
   const [editAccountNumber, setEditAccountNumber] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
 
-  // New expense form state
+  // Expense form state
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
   const [payerId, setPayerId] = useState("");
@@ -61,7 +63,7 @@ export default function TabPage() {
     try {
       setFetchError(null);
 
-      // 1. Fetch Tab row
+      // Safe lookup with maybeSingle to eliminate 406/PGRST116 errors
       const { data: tabData, error: tabErr } = await supabase
         .from("tabs")
         .select("id, slug, title")
@@ -76,7 +78,7 @@ export default function TabPage() {
       }
       setTab(tabData);
 
-      // 2. Fetch Members
+      // Fetch Members
       const { data: memberData, error: memErr } = await supabase
         .from("tab_members")
         .select("id, name, payment_method, account_number")
@@ -91,7 +93,7 @@ export default function TabPage() {
         setSelectedMembers(mems.map((m) => m.id));
       }
 
-      // 3. Fetch Expenses & Splits separately to prevent join failure
+      // Fetch Expenses
       const { data: rawExpenses, error: expErr } = await supabase
         .from("expenses")
         .select("id, payer_member_id, amount")
@@ -129,7 +131,7 @@ export default function TabPage() {
 
       setExpenses(formattedExpenses);
 
-      // 4. Fetch Payments
+      // Fetch Payments
       const { data: payData, error: payErr } = await supabase
         .from("payments")
         .select("payer_id, receiver_id, amount")
@@ -139,7 +141,7 @@ export default function TabPage() {
         setPayments(payData);
       }
     } catch (err: any) {
-      console.error("fetchTabData failed:", err);
+      console.error("fetchTabData error:", err);
       setFetchError(err.message || "Failed to load tab data");
     } finally {
       setLoading(false);
@@ -288,7 +290,7 @@ export default function TabPage() {
       <div className="min-h-screen bg-[#0B0F17] flex flex-col items-center justify-center text-slate-400 gap-3 p-6 text-center">
         <p className="text-white font-semibold">Tab not found</p>
         <p className="text-sm text-slate-500">
-          {fetchError ? `Database error: ${fetchError}` : `No tab exists with slug "${slug}".`}
+          {fetchError ? `Error: ${fetchError}` : `No tab found matching slug "${slug}".`}
         </p>
         <Link href="/" className="px-4 py-2 rounded-xl bg-emerald-500 text-black font-semibold text-sm">
           Return Home
@@ -361,7 +363,7 @@ export default function TabPage() {
       </section>
 
       <div className="p-5 space-y-6">
-        {/* Suggested Settlements */}
+        {/* Settlements */}
         <section className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 backdrop-blur-md">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
@@ -445,7 +447,7 @@ export default function TabPage() {
         </div>
       </div>
 
-      {/* Edit Payment Profile Modal */}
+      {/* Payment Profile Modal */}
       {isProfileModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="w-full max-w-md bg-[#121824] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-4">
