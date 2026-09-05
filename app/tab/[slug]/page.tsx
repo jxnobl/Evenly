@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { computeSettlements, Member, Expense, Settlement, PaymentRecord } from "@/lib/algorithm";
 import { 
   ArrowLeft, Plus, QrCode, Check, 
@@ -38,6 +38,7 @@ interface DetailedPayment extends PaymentRecord {
 }
 
 export default function TabPage() {
+  const router = useRouter();
   const routeParams = useParams();
   const slug = Array.isArray(routeParams?.slug)
     ? routeParams.slug[0]
@@ -61,6 +62,7 @@ export default function TabPage() {
   const [newMemberName, setNewMemberName] = useState("");
   const [addingMember, setAddingMember] = useState(false);
   const [deletingMemberId, setDeletingMemberId] = useState<string | null>(null);
+  const [isDeletingTab, setIsDeletingTab] = useState(false);
 
   const [showHistory, setShowHistory] = useState(true);
   const [activeSettlement, setActiveSettlement] = useState<Settlement | null>(null);
@@ -325,6 +327,36 @@ export default function TabPage() {
     }
   };
 
+  const handleDeleteTab = async () => {
+    if (!tab || isDeletingTab) return;
+
+    const confirmation = confirm(
+      `Are you sure you want to permanently delete "${tab.title}"?\n\nThis will remove all expenses, split calculations, and settlement logs for all group members. This action cannot be undone.`
+    );
+    if (!confirmation) return;
+
+    setIsDeletingTab(true);
+    try {
+      const { error } = await supabase.from("tabs").delete().eq("id", tab.id);
+      if (error) throw error;
+
+      try {
+        const existing = JSON.parse(localStorage.getItem("evenly_recent_tabs") || "[]");
+        const filtered = existing.filter((item: { slug: string }) => item.slug !== tab.slug);
+        localStorage.setItem("evenly_recent_tabs", JSON.stringify(filtered));
+        localStorage.removeItem(`user_${slug}`);
+      } catch (err) {
+        console.error("Failed to clean up localStorage:", err);
+      }
+
+      router.push("/");
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Failed to delete tab");
+      setIsDeletingTab(false);
+    }
+  };
+
   const openNewExpenseModal = () => {
     setEditingExpenseId(null);
     setTitle("");
@@ -574,8 +606,17 @@ export default function TabPage() {
               alert("Invite link copied to clipboard!");
             }}
             className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 active:scale-95 transition"
+            title="Share tab link"
           >
             <Share2 size={18} />
+          </button>
+          <button
+            onClick={handleDeleteTab}
+            disabled={isDeletingTab}
+            className="p-2 rounded-xl bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 active:scale-95 transition"
+            title="Delete this tab"
+          >
+            {isDeletingTab ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
           </button>
         </div>
       </header>
