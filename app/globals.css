@@ -1,15 +1,23 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  color-scheme: dark;
+  --bg-primary: #f8fafc;
+  --text-primary: #0f172a;
 }
 
-body {
-  background-color: #0B0F17;
-  color: #F8FAFC;
+.dark {
+  --bg-primary: #0b0f17;
+  --text-primary: #f8fafc;
 }
 
-/* Hide scrollbar for identity tabs */
+html, body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -18,7 +26,6 @@ body {
   scrollbar-width: none;
 }
 
-/* Animations */
 @keyframes sheetUp {
   0% {
     opacity: 0;
@@ -39,25 +46,10 @@ body {
   }
 }
 
-@keyframes itemPop {
-  0% {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 .animate-sheet-up {
   animation: sheetUp 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .animate-fade-in {
   animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.animate-item-pop {
-  animation: itemPop 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
