@@ -5,12 +5,13 @@ import { useParams, useRouter } from "next/navigation";
 import { computeSettlements, Member, Expense, Settlement, PaymentRecord } from "@/lib/algorithm";
 import { 
   ArrowLeft, Plus, QrCode, Check, 
-  Receipt, Wallet, Share2, X, Loader2,
+  Receipt, Share2, X, Loader2,
   Copy, Edit3, Smartphone, CheckCircle2, Trash2, Pencil,
   History, ChevronDown, ChevronUp, RotateCcw, AlertCircle,
   UserPlus, Users
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { QRCodeSVG } from "qrcode.react";
 import { supabase } from "@/lib/supabase";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -673,7 +674,7 @@ export default function TabPage() {
         <section className="bg-white dark:bg-white/[0.03] border border-black/5 dark:border-white/10 rounded-2xl p-5 backdrop-blur-md shadow-sm dark:shadow-lg animate-fade-in transition-colors">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-              <Wallet size={14} className="text-emerald-500 dark:text-emerald-400" /> Suggested Settle Up
+              <Image src="/icon.svg" alt="Evenly" width={16} height={16} className="rounded-sm" /> Suggested Settle Up
             </h2>
             <span className="text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md font-mono">
               {settlements.length} left

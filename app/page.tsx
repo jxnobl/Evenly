@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { Plus, X, ArrowRight, Loader2, Users, Wallet } from "lucide-react";
+import { Plus, X, ArrowRight, Loader2, Users } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 interface RecentTab {
@@ -100,14 +101,20 @@ export default function Home() {
 
   return (
     <main className="min-h-screen flex flex-col justify-center px-5 py-12 max-w-md mx-auto relative transition-colors">
-      {/* Top Header with Theme Switcher */}
       <div className="absolute top-5 right-5">
         <ThemeToggle />
       </div>
 
       <div className="text-center space-y-2 mb-8">
-        <div className="inline-flex p-3 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 mb-2 border border-emerald-500/20">
-          <Wallet size={32} />
+        <div className="inline-flex p-3 rounded-2xl bg-emerald-500/10 mb-2 border border-emerald-500/20 shadow-sm">
+          <Image
+            src="/icon.svg"
+            alt="Evenly Logo"
+            width={36}
+            height={36}
+            priority
+            className="rounded-lg"
+          />
         </div>
         <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">Evenly</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -192,7 +199,6 @@ export default function Home() {
         </form>
       </div>
 
-      {/* Recent Tabs Section */}
       {recentTabs.length > 0 && (
         <div className="mt-8 space-y-3 animate-fade-in">
           <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
