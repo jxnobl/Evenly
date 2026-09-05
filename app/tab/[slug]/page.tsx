@@ -7,7 +7,7 @@ import {
   ArrowLeft, Plus, QrCode, Check, 
   Receipt, Wallet, Share2, X, Loader2,
   Copy, Edit3, Smartphone, CheckCircle2, Trash2, Pencil,
-  History, ChevronDown, ChevronUp, RotateCcw, AlertCircle
+  History, ChevronDown, ChevronUp, RotateCcw, AlertCircle, Eye
 } from "lucide-react";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
@@ -51,6 +51,7 @@ export default function TabPage() {
   const [currentMemberId, setCurrentMemberId] = useState<string | null>(null);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
+  const [inspectingExpense, setInspectingExpense] = useState<DetailedExpense | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(true);
   const [activeSettlement, setActiveSettlement] = useState<Settlement | null>(null);
@@ -270,6 +271,7 @@ export default function TabPage() {
     try {
       const { error } = await supabase.from("expenses").delete().eq("id", id);
       if (error) throw error;
+      if (inspectingExpense?.id === id) setInspectingExpense(null);
       await fetchTabData();
     } catch (err: any) {
       alert(err.message || "Failed to delete expense");
@@ -562,7 +564,11 @@ export default function TabPage() {
             </div>
           ) : (
             expenses.map((exp) => (
-              <div key={exp.id} className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2">
+              <div 
+                key={exp.id} 
+                className="p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:border-white/10 transition space-y-2 cursor-pointer"
+                onClick={() => setInspectingExpense(exp)}
+              >
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-semibold text-white">{exp.title || "Expense"}</p>
@@ -570,7 +576,7 @@ export default function TabPage() {
                       <span className="text-emerald-400 font-medium">{getMember(exp.payerMemberId)?.name}</span> paid · {exp.splits.length} split
                     </p>
                   </div>
-                  <div className="text-right flex items-center gap-3">
+                  <div className="text-right flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
                     <p className="font-mono font-bold text-emerald-400">₱{exp.amount.toFixed(2)}</p>
                     <div className="flex items-center gap-1">
                       <button
@@ -669,6 +675,88 @@ export default function TabPage() {
           </button>
         </div>
       </div>
+
+      {/* Expense Breakdown Drawer / Modal */}
+      {inspectingExpense && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="w-full max-w-md bg-[#121824] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-5">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-lg font-bold text-white leading-tight">
+                  {inspectingExpense.title || "Expense Breakdown"}
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Paid by <span className="text-emerald-400 font-semibold">{getMember(inspectingExpense.payerMemberId)?.name}</span>
+                </p>
+              </div>
+              <button 
+                onClick={() => setInspectingExpense(null)} 
+                className="text-slate-400 hover:text-white p-1"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
+              <span className="text-xs text-slate-400 font-medium">Total Amount</span>
+              <span className="text-xl font-bold font-mono text-emerald-400">
+                ₱{inspectingExpense.amount.toFixed(2)}
+              </span>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2.5">
+                Who Split & How Much
+              </p>
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                {inspectingExpense.splits.map((s) => (
+                  <div 
+                    key={s.memberId} 
+                    className="flex items-center justify-between p-3 rounded-xl bg-white/[0.015] border border-white/5"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-slate-200">
+                        {getMember(s.memberId)?.name}
+                      </span>
+                      {s.memberId === inspectingExpense.payerMemberId && (
+                        <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded font-mono">
+                          Payer
+                        </span>
+                      )}
+                    </div>
+                    <span className="font-mono text-sm font-semibold text-slate-300">
+                      ₱{s.amountOwed.toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => {
+                  const exp = inspectingExpense;
+                  setInspectingExpense(null);
+                  openEditExpenseModal(exp);
+                }}
+                className="flex-1 py-3 bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition"
+              >
+                <Pencil size={14} /> Edit Expense
+              </button>
+              <button
+                onClick={() => {
+                  const id = inspectingExpense.id;
+                  handleDeleteExpense(id);
+                }}
+                className="p-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl transition"
+                title="Delete"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Payment Profile Modal */}
       {isProfileModalOpen && (
