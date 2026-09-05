@@ -6,7 +6,7 @@ import { computeSettlements, Member, Expense, Settlement, PaymentRecord } from "
 import { 
   ArrowLeft, Plus, QrCode, Check, 
   Receipt, Wallet, Share2, X, Loader2,
-  Copy, Edit3, Smartphone, CheckCircle2
+  Copy, Edit3, Smartphone, CheckCircle2, Trash2, Pencil
 } from "lucide-react";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
@@ -25,6 +25,10 @@ interface FullMember extends Member {
   account_number?: string;
 }
 
+interface DetailedExpense extends Expense {
+  title?: string;
+}
+
 export default function TabPage() {
   const routeParams = useParams();
   const slug = Array.isArray(routeParams?.slug)
@@ -33,13 +37,14 @@ export default function TabPage() {
 
   const [tab, setTab] = useState<TabRecord | null>(null);
   const [members, setMembers] = useState<FullMember[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [expenses, setExpenses] = useState<DetailedExpense[]>([]);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   const [currentMemberId, setCurrentMemberId] = useState<string | null>(null);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [activeSettlement, setActiveSettlement] = useState<Settlement | null>(null);
   const [copied, setCopied] = useState(false);
@@ -63,7 +68,6 @@ export default function TabPage() {
     try {
       setFetchError(null);
 
-      // Safe lookup with maybeSingle to eliminate 406/PGRST116 errors
       const { data: tabData, error: tabErr } = await supabase
         .from("tabs")
         .select("id, slug, title")
@@ -78,7 +82,6 @@ export default function TabPage() {
       }
       setTab(tabData);
 
-      // Fetch Members
       const { data: memberData, error: memErr } = await supabase
         .from("tab_members")
         .select("id, name, payment_method, account_number")
@@ -93,10 +96,9 @@ export default function TabPage() {
         setSelectedMembers(mems.map((m) => m.id));
       }
 
-      // Fetch Expenses
       const { data: rawExpenses, error: expErr } = await supabase
         .from("expenses")
-        .select("id, payer_member_id, amount")
+        .select("id, title, payer_member_id, amount")
         .eq("tab_id", tabData.id)
         .order("created_at", { ascending: false });
 
@@ -122,8 +124,9 @@ export default function TabPage() {
         }
       }
 
-      const formattedExpenses: Expense[] = (rawExpenses || []).map((e) => ({
+      const formattedExpenses: DetailedExpense[] = (rawExpenses || []).map((e) => ({
         id: e.id,
+        title: e.title,
         payerMemberId: e.payer_member_id,
         amount: Number(e.amount),
         splits: splitsByExpense[e.id] || [],
@@ -131,7 +134,6 @@ export default function TabPage() {
 
       setExpenses(formattedExpenses);
 
-      // Fetch Payments
       const { data: payData, error: payErr } = await supabase
         .from("payments")
         .select("payer_id, receiver_id, amount")
@@ -200,7 +202,39 @@ export default function TabPage() {
     }
   };
 
-  const handleAddExpense = async (e: React.FormEvent) => {
+  const openNewExpenseModal = () => {
+    setEditingExpenseId(null);
+    setTitle("");
+    setAmount("");
+    if (members.length > 0) {
+      setPayerId(members[0].id);
+      setSelectedMembers(members.map((m) => m.id));
+    }
+    setIsExpenseModalOpen(true);
+  };
+
+  const openEditExpenseModal = (exp: DetailedExpense) => {
+    setEditingExpenseId(exp.id);
+    setTitle(exp.title || "");
+    setAmount(exp.amount.toString());
+    setPayerId(exp.payerMemberId);
+    setSelectedMembers(exp.splits.map((s) => s.memberId));
+    setIsExpenseModalOpen(true);
+  };
+
+  const handleDeleteExpense = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this expense?")) return;
+
+    try {
+      const { error } = await supabase.from("expenses").delete().eq("id", id);
+      if (error) throw error;
+      await fetchTabData();
+    } catch (err: any) {
+      alert(err.message || "Failed to delete expense");
+    }
+  };
+
+  const handleSaveExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tab || !title.trim() || !amount || selectedMembers.length === 0 || submittingExpense) return;
 
@@ -209,40 +243,62 @@ export default function TabPage() {
       const total = parseFloat(amount);
       const splitAmount = Math.round((total / selectedMembers.length) * 100) / 100;
 
-      const { data: expData, error: expError } = await supabase
-        .from("expenses")
-        .insert([
-          {
-            tab_id: tab.id,
-            payer_member_id: payerId,
+      if (editingExpenseId) {
+        // Update existing expense
+        const { error: expUpdateErr } = await supabase
+          .from("expenses")
+          .update({
             title: title.trim(),
             amount: total,
-          },
-        ])
-        .select()
-        .single();
+            payer_member_id: payerId,
+          })
+          .eq("id", editingExpenseId);
 
-      if (expError) throw expError;
+        if (expUpdateErr) throw expUpdateErr;
 
-      const splitsToInsert = selectedMembers.map((mId) => ({
-        expense_id: expData.id,
-        member_id: mId,
-        amount_owed: splitAmount,
-      }));
+        // Re-create splits
+        await supabase.from("expense_splits").delete().eq("expense_id", editingExpenseId);
 
-      const { error: splitError } = await supabase
-        .from("expense_splits")
-        .insert(splitsToInsert);
+        const splitsToInsert = selectedMembers.map((mId) => ({
+          expense_id: editingExpenseId,
+          member_id: mId,
+          amount_owed: splitAmount,
+        }));
 
-      if (splitError) throw splitError;
+        const { error: splitErr } = await supabase.from("expense_splits").insert(splitsToInsert);
+        if (splitErr) throw splitErr;
+      } else {
+        // Create new expense
+        const { data: expData, error: expError } = await supabase
+          .from("expenses")
+          .insert([
+            {
+              tab_id: tab.id,
+              payer_member_id: payerId,
+              title: title.trim(),
+              amount: total,
+            },
+          ])
+          .select()
+          .single();
 
-      setTitle("");
-      setAmount("");
+        if (expError) throw expError;
+
+        const splitsToInsert = selectedMembers.map((mId) => ({
+          expense_id: expData.id,
+          member_id: mId,
+          amount_owed: splitAmount,
+        }));
+
+        const { error: splitError } = await supabase.from("expense_splits").insert(splitsToInsert);
+        if (splitError) throw splitError;
+      }
+
       setIsExpenseModalOpen(false);
       await fetchTabData();
     } catch (err: any) {
       console.error(err);
-      alert(err.message || "Failed to log expense");
+      alert(err.message || "Failed to save expense");
     } finally {
       setSubmittingExpense(false);
     }
@@ -421,13 +477,33 @@ export default function TabPage() {
             </div>
           ) : (
             expenses.map((exp) => (
-              <div key={exp.id} className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/5">
-                <div>
-                  <p className="text-sm font-semibold text-white">{getMember(exp.payerMemberId)?.name} paid</p>
-                  <p className="text-xs text-slate-500">{exp.splits.length} people split</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-mono font-bold text-emerald-400">₱{exp.amount.toFixed(2)}</p>
+              <div key={exp.id} className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-white">{exp.title || "Expense"}</p>
+                    <p className="text-xs text-slate-400">
+                      <span className="text-emerald-400 font-medium">{getMember(exp.payerMemberId)?.name}</span> paid · {exp.splits.length} split
+                    </p>
+                  </div>
+                  <div className="text-right flex items-center gap-3">
+                    <p className="font-mono font-bold text-emerald-400">₱{exp.amount.toFixed(2)}</p>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => openEditExpenseModal(exp)}
+                        className="p-1.5 text-slate-500 hover:text-white rounded-lg transition"
+                        title="Edit expense"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteExpense(exp.id)}
+                        className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg transition"
+                        title="Delete expense"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             ))
@@ -439,7 +515,7 @@ export default function TabPage() {
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#0B0F17] via-[#0B0F17]/90 to-transparent">
         <div className="max-w-md mx-auto">
           <button
-            onClick={() => setIsExpenseModalOpen(true)}
+            onClick={openNewExpenseModal}
             className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-[0.98] transition text-sm"
           >
             <Plus size={18} /> Add Expense
@@ -588,18 +664,20 @@ export default function TabPage() {
         );
       })()}
 
-      {/* Add Expense Modal */}
+      {/* Add/Edit Expense Modal */}
       {isExpenseModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="w-full max-w-md bg-[#121824] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center">
-              <h3 className="text-base font-bold text-white">Log an Expense</h3>
+              <h3 className="text-base font-bold text-white">
+                {editingExpenseId ? "Edit Expense" : "Log an Expense"}
+              </h3>
               <button onClick={() => setIsExpenseModalOpen(false)} className="text-slate-400 p-1">
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleAddExpense} className="space-y-4">
+            <form onSubmit={handleSaveExpense} className="space-y-4">
               <div>
                 <label className="text-xs font-semibold text-slate-400 uppercase">Expense Title</label>
                 <input
@@ -677,7 +755,11 @@ export default function TabPage() {
                 disabled={submittingExpense}
                 className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3.5 rounded-xl text-sm mt-2 transition shadow-lg shadow-emerald-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {submittingExpense ? <Loader2 size={16} className="animate-spin" /> : "Save Expense"}
+                {submittingExpense ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  editingExpenseId ? "Update Expense" : "Save Expense"
+                )}
               </button>
             </form>
           </div>
