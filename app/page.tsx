@@ -3,11 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { 
-  Sparkles, Plus, X, ArrowRight, Loader2, 
-  Layers, ShieldCheck, Zap 
-} from "lucide-react";
-import { SpotlightCard } from "@/components/ui/spotlight-card";
+import { Plus, X, ArrowRight, Loader2, Users, Wallet } from "lucide-react";
 
 export default function Home() {
   const router = useRouter();
@@ -16,14 +12,19 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleAddMember = () => setMembers([...members, ""]);
-  const handleRemoveMember = (idx: number) => {
-    if (members.length > 2) setMembers(members.filter((_, i) => i !== idx));
+  const handleAddMember = () => {
+    setMembers([...members, ""]);
   };
 
-  const handleMemberChange = (idx: number, val: string) => {
+  const handleRemoveMember = (index: number) => {
+    if (members.length > 2) {
+      setMembers(members.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleMemberChange = (index: number, value: string) => {
     const updated = [...members];
-    updated[idx] = val;
+    updated[index] = value;
     setMembers(updated);
   };
 
@@ -43,108 +44,93 @@ export default function Home() {
       .replace(/^-+|-+$/g, "")}-${Math.random().toString(36).substring(2, 6)}`;
 
     try {
-      const { data: tabData, error: tabErr } = await supabase
+      const { data: tabData, error: tabError } = await supabase
         .from("tabs")
         .insert([{ title: cleanTitle, slug: generatedSlug }])
         .select()
         .single();
 
-      if (tabErr) throw tabErr;
+      if (tabError) throw tabError;
 
       const memberInserts = cleanMembers.map((name) => ({
         tab_id: tabData.id,
         name,
       }));
 
-      const { error: memErr } = await supabase
+      const { error: memberError } = await supabase
         .from("tab_members")
         .insert(memberInserts);
 
-      if (memErr) throw memErr;
+      if (memberError) throw memberError;
 
       router.push(`/tab/${generatedSlug}`);
     } catch (err: any) {
-      console.error(err);
+      console.error("Tab creation failed:", err);
       setErrorMessage(err.message || "Failed to create tab. Check connection.");
       setLoading(false);
     }
   };
 
   return (
-    <main className="min-h-screen max-w-xl mx-auto px-5 py-16 flex flex-col justify-center">
-      {/* Precision Badge */}
-      <div className="flex items-center justify-center mb-6">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#5E6AD2]/30 bg-[#5E6AD2]/10 backdrop-blur-md">
-          <Sparkles size={12} className="text-[#6872D9]" />
-          <span className="text-[11px] font-mono tracking-wider uppercase text-[#EDEDEF]">
-            Precision Group Splitting
-          </span>
+    <main className="min-h-screen bg-[#0B0F17] text-slate-100 flex flex-col justify-center px-5 py-12 max-w-md mx-auto">
+      <div className="text-center space-y-2 mb-8">
+        <div className="inline-flex p-3 rounded-2xl bg-emerald-500/10 text-emerald-400 mb-2 border border-emerald-500/20">
+          <Wallet size={32} />
         </div>
-      </div>
-
-      {/* Hero Headline */}
-      <div className="text-center space-y-3 mb-10">
-        <h1 className="text-4xl sm:text-5xl font-semibold tracking-[-0.03em] bg-gradient-to-b from-white via-white/95 to-white/60 bg-clip-text text-transparent">
-          Split expenses. <br />
-          Settle in seconds.
-        </h1>
-        <p className="text-sm sm:text-base text-[#8A8F98] max-w-sm mx-auto font-normal leading-relaxed">
-          Zero login friction. Real-time balance optimization with instant GCash and Maya settlements.
+        <h1 className="text-3xl font-black tracking-tight text-white">Evenly</h1>
+        <p className="text-sm text-slate-400">
+          Split group expenses and settle up with GCash, Maya, and QR Ph.
         </p>
       </div>
 
-      {/* Creation Card */}
-      <SpotlightCard className="p-6 sm:p-8">
-        <form onSubmit={handleCreateTab} className="space-y-6">
+      <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 backdrop-blur-md shadow-xl">
+        <form onSubmit={handleCreateTab} className="space-y-5">
           <div>
-            <label className="text-[11px] font-mono uppercase tracking-wider text-[#8A8F98]">
-              Tab Name
+            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              Tab Title
             </label>
             <input
               type="text"
               required
-              placeholder="e.g. Siargao Trip, Friday Dinner"
+              placeholder="e.g. Boracay Weekend, Samgyup"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full mt-2 bg-[#0a0a0c] border border-white/10 rounded-xl px-4 py-3 text-sm text-[#EDEDEF] placeholder-[#8A8F98]/50 focus:border-[#5E6AD2] focus:ring-2 focus:ring-[#5E6AD2]/30 outline-none transition duration-200"
+              className="w-full mt-1.5 bg-[#1A2234] border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition"
             />
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-[11px] font-mono uppercase tracking-wider text-[#8A8F98]">
-                Participants ({members.length})
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Users size={13} /> Group Members
               </label>
               <button
                 type="button"
                 onClick={handleAddMember}
-                className="text-xs text-[#6872D9] hover:text-white flex items-center gap-1 font-medium transition"
+                className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-semibold"
               >
-                <Plus size={13} /> Add Person
+                <Plus size={14} /> Add Person
               </button>
             </div>
 
-            <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
-              {members.map((m, idx) => (
+            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+              {members.map((member, idx) => (
                 <div key={idx} className="flex items-center gap-2">
-                  <span className="text-[11px] font-mono text-[#8A8F98]/60 w-5">
-                    0{idx + 1}
-                  </span>
                   <input
                     type="text"
                     required
                     placeholder={`Member ${idx + 1}`}
-                    value={m}
+                    value={member}
                     onChange={(e) => handleMemberChange(idx, e.target.value)}
-                    className="flex-1 bg-[#0a0a0c] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-[#EDEDEF] placeholder-[#8A8F98]/40 focus:border-[#5E6AD2] outline-none transition"
+                    className="flex-1 bg-white/[0.05] border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-sm focus:border-emerald-500 outline-none transition"
                   />
                   {members.length > 2 && (
                     <button
                       type="button"
                       onClick={() => handleRemoveMember(idx)}
-                      className="p-2 text-[#8A8F98] hover:text-rose-400 rounded-lg transition"
+                      className="p-2 text-slate-500 hover:text-rose-400 rounded-lg transition"
                     >
-                      <X size={14} />
+                      <X size={16} />
                     </button>
                   )}
                 </div>
@@ -161,33 +147,17 @@ export default function Home() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#5E6AD2] hover:bg-[#6872D9] text-white font-semibold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 shadow-linear-cta active:scale-[0.98] transition-all duration-200 disabled:opacity-50"
+            className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-[0.98] transition disabled:opacity-50"
           >
             {loading ? (
-              <Loader2 size={16} className="animate-spin" />
+              <Loader2 size={18} className="animate-spin" />
             ) : (
               <>
-                Create Tab <ArrowRight size={15} />
+                Create Tab <ArrowRight size={16} />
               </>
             )}
           </button>
         </form>
-      </SpotlightCard>
-
-      {/* Micro Feature Proofs */}
-      <div className="grid grid-cols-3 gap-3 mt-8">
-        <div className="p-3 rounded-xl border border-white/[0.04] bg-white/[0.015] text-center space-y-1">
-          <Zap size={14} className="mx-auto text-[#6872D9]" />
-          <p className="text-[11px] text-[#8A8F98]">Instant Sync</p>
-        </div>
-        <div className="p-3 rounded-xl border border-white/[0.04] bg-white/[0.015] text-center space-y-1">
-          <Layers size={14} className="mx-auto text-[#6872D9]" />
-          <p className="text-[11px] text-[#8A8F98]">Minimum Debts</p>
-        </div>
-        <div className="p-3 rounded-xl border border-white/[0.04] bg-white/[0.015] text-center space-y-1">
-          <ShieldCheck size={14} className="mx-auto text-[#6872D9]" />
-          <p className="text-[11px] text-[#8A8F98]">Direct QR Pay</p>
-        </div>
       </div>
     </main>
   );

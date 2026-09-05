@@ -7,55 +7,15 @@
 }
 
 body {
-  background-color: #050506;
-  color: #EDEDEF;
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-  overflow-x: hidden;
+  background-color: #0B0F17;
+  color: #F8FAFC;
 }
 
-.linear-grid {
-  background-image: linear-gradient(
-      to right,
-      rgba(255, 255, 255, 0.02) 1px,
-      transparent 1px
-    ),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-  background-size: 56px 56px;
+/* Hide scrollbar for identity tabs */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
-
-.linear-border-top {
-  position: relative;
-}
-
-.linear-border-top::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.12) 50%,
-    transparent
-  );
-}
-
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: #050506;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 9999px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

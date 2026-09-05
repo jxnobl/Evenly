@@ -12,7 +12,6 @@ import {
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import { supabase } from "@/lib/supabase";
-import { SpotlightCard } from "@/components/ui/spotlight-card";
 
 export const dynamic = "force-dynamic";
 
@@ -422,21 +421,21 @@ export default function TabPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#050506] flex items-center justify-center text-[#8A8F98] gap-2">
-        <Loader2 size={18} className="animate-spin text-[#5E6AD2]" />
-        <span className="text-xs font-mono">Synchronizing state...</span>
+      <div className="min-h-screen bg-[#0B0F17] flex items-center justify-center text-slate-400 gap-2">
+        <Loader2 size={20} className="animate-spin text-emerald-400" />
+        <span>Loading Tab...</span>
       </div>
     );
   }
 
   if (!tab) {
     return (
-      <div className="min-h-screen bg-[#050506] flex flex-col items-center justify-center text-[#8A8F98] gap-3 p-6 text-center">
+      <div className="min-h-screen bg-[#0B0F17] flex flex-col items-center justify-center text-slate-400 gap-3 p-6 text-center">
         <p className="text-white font-semibold">Tab not found</p>
-        <p className="text-xs text-[#8A8F98] font-mono">
+        <p className="text-sm text-slate-500">
           {fetchError ? `Error: ${fetchError}` : `No tab found matching slug "${slug}".`}
         </p>
-        <Link href="/" className="px-4 py-2 rounded-xl bg-[#5E6AD2] text-white font-semibold text-xs shadow-linear-cta">
+        <Link href="/" className="px-4 py-2 rounded-xl bg-emerald-500 text-black font-semibold text-sm">
           Return Home
         </Link>
       </div>
@@ -447,16 +446,15 @@ export default function TabPage() {
   const getMember = (id: string) => members.find((m) => m.id === id);
 
   return (
-    <main className="min-h-screen max-w-lg mx-auto pb-32 relative text-[#EDEDEF]">
-      {/* Linear Sticky Header */}
-      <header className="sticky top-0 z-20 bg-[#050506]/85 backdrop-blur-xl px-5 py-3.5 border-b border-white/[0.06] flex items-center justify-between linear-border-top">
+    <main className="min-h-screen bg-[#0B0F17] text-slate-100 max-w-md mx-auto pb-28 relative">
+      <header className="sticky top-0 z-20 bg-[#0B0F17]/80 backdrop-blur-md px-5 py-4 border-b border-white/5 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link href="/" className="p-2 -ml-2 rounded-lg text-[#8A8F98] hover:text-white hover:bg-white/[0.04] transition">
-            <ArrowLeft size={16} />
+          <Link href="/" className="p-2 -ml-2 rounded-xl bg-white/[0.03] text-slate-400 hover:text-white">
+            <ArrowLeft size={18} />
           </Link>
           <div>
-            <h1 className="font-semibold text-sm text-white leading-tight tracking-tight">{tab.title}</h1>
-            <p className="text-[11px] font-mono text-[#8A8F98]">{members.length} members connected</p>
+            <h1 className="font-bold text-base text-white leading-tight">{tab.title}</h1>
+            <p className="text-xs text-slate-500">{members.length} members</p>
           </div>
         </div>
         <button 
@@ -464,24 +462,24 @@ export default function TabPage() {
             navigator.clipboard.writeText(window.location.href);
             alert("Invite link copied to clipboard!");
           }}
-          className="p-2 rounded-lg bg-white/[0.03] text-[#8A8F98] hover:text-[#5E6AD2] hover:bg-[#5E6AD2]/10 transition border border-white/[0.04]"
+          className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
         >
-          <Share2 size={16} />
+          <Share2 size={18} />
         </button>
       </header>
 
-      {/* Identity Bar */}
-      <section className="px-5 py-2.5 bg-white/[0.015] border-b border-white/[0.04] flex items-center justify-between">
+      {/* Identity Selector */}
+      <section className="px-5 py-3 bg-white/[0.02] border-b border-white/5 flex items-center justify-between">
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
-          <span className="text-[11px] font-mono text-[#8A8F98] shrink-0 uppercase tracking-wider">You:</span>
+          <span className="text-xs text-slate-500 shrink-0 font-medium">You:</span>
           {members.map((m) => (
             <button
               key={m.id}
               onClick={() => handleClaimIdentity(m.id)}
-              className={`text-xs px-3 py-1 rounded-full whitespace-nowrap transition duration-200 ${
+              className={`text-xs px-3 py-1 rounded-full whitespace-nowrap transition ${
                 currentMemberId === m.id
-                  ? "bg-[#5E6AD2] text-white font-medium shadow-linear-cta"
-                  : "bg-white/[0.03] text-[#8A8F98] hover:bg-white/[0.06] hover:text-white"
+                  ? "bg-emerald-500 text-black font-semibold"
+                  : "bg-white/[0.04] text-slate-400 hover:bg-white/[0.08]"
               }`}
             >
               {m.name}
@@ -499,53 +497,53 @@ export default function TabPage() {
               }
               setIsProfileModalOpen(true);
             }}
-            className="p-1.5 ml-2 text-[#8A8F98] hover:text-[#5E6AD2] shrink-0 transition"
+            className="p-1.5 ml-2 text-slate-400 hover:text-emerald-400 shrink-0"
             title="Edit payment info"
           >
-            <Edit3 size={14} />
+            <Edit3 size={15} />
           </button>
         )}
       </section>
 
       <div className="p-5 space-y-6">
-        {/* Suggested Settle Up */}
-        <SpotlightCard className="p-5">
+        {/* Settlements */}
+        <section className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 backdrop-blur-md">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[11px] font-mono uppercase tracking-wider text-[#8A8F98] flex items-center gap-2">
-              <Wallet size={13} className="text-[#6872D9]" /> Optimal Settlement Route
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+              <Wallet size={14} className="text-emerald-400" /> Suggested Settle Up
             </h2>
-            <span className="text-[11px] font-mono text-[#6872D9] bg-[#5E6AD2]/10 border border-[#5E6AD2]/20 px-2 py-0.5 rounded-full">
-              {settlements.length} remaining
+            <span className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md font-mono">
+              {settlements.length} left
             </span>
           </div>
 
           {settlements.length === 0 ? (
-            <div className="text-center py-6 text-xs text-[#8A8F98] font-mono">
-              ✦ Everyone is fully balanced
+            <div className="text-center py-6 text-sm text-slate-500">
+              🎉 Everyone is fully settled up!
             </div>
           ) : (
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               {settlements.map((s, idx) => {
                 const creditor = getMember(s.creditorId);
                 const debtor = getMember(s.debtorId);
 
                 return (
-                  <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] hover:border-white/[0.08] transition">
-                    <div className="text-xs">
-                      <span className="font-medium text-rose-300">{debtor?.name}</span>
-                      <span className="text-[#8A8F98] mx-2 font-mono">&rarr;</span>
-                      <span className="font-medium text-[#6872D9]">{creditor?.name}</span>
+                  <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5">
+                    <div className="text-sm">
+                      <span className="font-semibold text-rose-400">{debtor?.name}</span>
+                      <span className="text-slate-500 mx-1.5">&rarr;</span>
+                      <span className="font-semibold text-emerald-400">{creditor?.name}</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="font-mono font-semibold text-white text-xs">₱{s.amount.toFixed(2)}</span>
+                      <span className="font-mono font-bold text-white text-sm">₱{s.amount.toFixed(2)}</span>
                       <button
                         onClick={() => {
                           setActiveSettlement(s);
                           setCopied(false);
                         }}
-                        className="px-2.5 py-1 bg-[#5E6AD2]/15 hover:bg-[#5E6AD2]/25 text-[#6872D9] border border-[#5E6AD2]/30 rounded-lg text-xs font-medium flex items-center gap-1.5 transition"
+                        className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg text-xs font-semibold flex items-center gap-1"
                       >
-                        <QrCode size={12} /> Settle
+                        <QrCode size={13} /> Settle
                       </button>
                     </div>
                   </div>
@@ -553,48 +551,49 @@ export default function TabPage() {
               })}
             </div>
           )}
-        </SpotlightCard>
+        </section>
 
-        {/* Logged Expenses */}
+        {/* Expenses List */}
         <section className="space-y-3">
-          <h2 className="text-[11px] font-mono uppercase tracking-wider text-[#8A8F98] flex items-center gap-2">
-            <Receipt size={13} className="text-[#6872D9]" /> Activity Ledger
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+            <Receipt size={14} className="text-emerald-400" /> Logged Expenses
           </h2>
-
           {expenses.length === 0 ? (
-            <div className="text-center py-10 text-xs text-[#8A8F98] font-mono border border-dashed border-white/[0.06] rounded-2xl">
-              No entries logged. Press "Add Expense" below.
+            <div className="text-center py-8 text-sm text-slate-600">
+              No expenses recorded yet. Tap below to add one.
             </div>
           ) : (
             expenses.map((exp) => (
               <div 
                 key={exp.id} 
                 onClick={() => setInspectingExpense(exp)}
-                className="p-4 rounded-xl border border-white/[0.06] bg-gradient-to-b from-white/[0.04] to-white/[0.01] hover:border-white/[0.12] transition duration-200 cursor-pointer flex items-center justify-between shadow-sm"
+                className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2 cursor-pointer hover:border-white/10 transition"
               >
-                <div>
-                  <p className="text-sm font-medium text-white">{exp.title || "Expense"}</p>
-                  <p className="text-xs text-[#8A8F98] mt-0.5 font-mono">
-                    <span className="text-[#6872D9]">{getMember(exp.payerMemberId)?.name}</span> paid · {exp.splits.length} split
-                  </p>
-                </div>
-                <div className="text-right flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-                  <p className="font-mono font-semibold text-white text-sm">₱{exp.amount.toFixed(2)}</p>
-                  <div className="flex items-center gap-0.5">
-                    <button
-                      onClick={() => openEditExpenseModal(exp)}
-                      className="p-1.5 text-[#8A8F98] hover:text-white rounded-lg transition"
-                      title="Edit"
-                    >
-                      <Pencil size={13} />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteExpense(exp.id)}
-                      className="p-1.5 text-[#8A8F98] hover:text-rose-400 rounded-lg transition"
-                      title="Delete"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-white">{exp.title || "Expense"}</p>
+                    <p className="text-xs text-slate-400">
+                      <span className="text-emerald-400 font-medium">{getMember(exp.payerMemberId)?.name}</span> paid · {exp.splits.length} split
+                    </p>
+                  </div>
+                  <div className="text-right flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                    <p className="font-mono font-bold text-emerald-400">₱{exp.amount.toFixed(2)}</p>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => openEditExpenseModal(exp)}
+                        className="p-1.5 text-slate-500 hover:text-white rounded-lg transition"
+                        title="Edit expense"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteExpense(exp.id)}
+                        className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg transition"
+                        title="Delete expense"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -602,18 +601,18 @@ export default function TabPage() {
           )}
         </section>
 
-        {/* Settled History */}
+        {/* Payment History Log */}
         {payments.length > 0 && (
           <section className="space-y-3">
             <button
               type="button"
               onClick={() => setShowHistory(!showHistory)}
-              className="w-full flex items-center justify-between text-[11px] font-mono uppercase tracking-wider text-[#8A8F98] hover:text-white transition"
+              className="w-full flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white transition"
             >
-              <span className="flex items-center gap-2">
-                <History size={13} className="text-[#6872D9]" /> Settled Log ({payments.length})
+              <span className="flex items-center gap-1.5">
+                <History size={14} className="text-emerald-400" /> Settled Payments ({payments.length})
               </span>
-              {showHistory ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+              {showHistory ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
 
             {showHistory && (
@@ -625,15 +624,15 @@ export default function TabPage() {
                   return (
                     <div
                       key={p.id}
-                      className="flex items-center justify-between p-3 rounded-xl bg-white/[0.015] border border-white/[0.04] text-xs"
+                      className="flex items-center justify-between p-3.5 rounded-xl bg-white/[0.015] border border-white/5 text-xs"
                     >
                       <div className="space-y-0.5">
-                        <div className="text-white">
-                          <span className="text-[#8A8F98]">{debtor?.name}</span> paid{" "}
-                          <span className="text-[#6872D9] font-medium">{creditor?.name}</span>
+                        <div className="text-slate-300">
+                          <span className="text-slate-400 font-medium">{debtor?.name}</span> paid{" "}
+                          <span className="text-emerald-400 font-medium">{creditor?.name}</span>
                         </div>
                         {p.created_at && (
-                          <p className="text-[10px] text-[#8A8F98]/70 font-mono">
+                          <p className="text-[10px] text-slate-500 font-mono">
                             {new Date(p.created_at).toLocaleDateString("en-US", {
                               month: "short",
                               day: "numeric",
@@ -645,15 +644,15 @@ export default function TabPage() {
                       </div>
 
                       <div className="flex items-center gap-3">
-                        <span className="font-mono font-medium text-white">
+                        <span className="font-mono font-semibold text-emerald-400">
                           ₱{p.amount.toFixed(2)}
                         </span>
                         <button
                           onClick={() => handleDeletePayment(p.id)}
-                          className="p-1 text-[#8A8F98]/50 hover:text-amber-400 transition"
+                          className="p-1 text-slate-600 hover:text-amber-400 transition"
                           title="Undo payment"
                         >
-                          <RotateCcw size={12} />
+                          <RotateCcw size={13} />
                         </button>
                       </div>
                     </div>
@@ -665,60 +664,67 @@ export default function TabPage() {
         )}
       </div>
 
-      {/* Floating Action Button */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#050506] via-[#050506]/90 to-transparent pointer-events-none">
-        <div className="max-w-lg mx-auto pointer-events-auto">
+      {/* Floating CTA */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#0B0F17] via-[#0B0F17]/90 to-transparent">
+        <div className="max-w-md mx-auto">
           <button
             onClick={openNewExpenseModal}
-            className="w-full bg-[#5E6AD2] hover:bg-[#6872D9] text-white font-semibold py-3.5 rounded-xl flex items-center justify-center gap-2 shadow-linear-cta active:scale-[0.98] transition-all duration-200 text-sm"
+            className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-[0.98] transition text-sm"
           >
-            <Plus size={16} /> Add Expense
+            <Plus size={18} /> Add Expense
           </button>
         </div>
       </div>
 
-      {/* Expense Detail Drawer */}
+      {/* Expense Detail Modal */}
       {inspectingExpense && (
-        <div className="fixed inset-0 z-50 bg-[#020203]/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="w-full max-w-md bg-[#0a0a0c] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="w-full max-w-md bg-[#121824] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-5">
             <div className="flex justify-between items-start">
               <div>
-                <h3 className="text-base font-semibold text-white leading-tight">
+                <h3 className="text-lg font-bold text-white leading-tight">
                   {inspectingExpense.title || "Expense Breakdown"}
                 </h3>
-                <p className="text-xs text-[#8A8F98] mt-0.5 font-mono">
-                  Paid by <span className="text-[#6872D9] font-medium">{getMember(inspectingExpense.payerMemberId)?.name}</span>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Paid by <span className="text-emerald-400 font-semibold">{getMember(inspectingExpense.payerMemberId)?.name}</span>
                 </p>
               </div>
               <button 
                 onClick={() => setInspectingExpense(null)} 
-                className="text-[#8A8F98] hover:text-white p-1"
+                className="text-slate-400 hover:text-white p-1"
               >
-                <X size={18} />
+                <X size={20} />
               </button>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.06] flex items-center justify-between">
-              <span className="text-xs font-mono text-[#8A8F98]">Total Sum</span>
-              <span className="text-lg font-mono font-semibold text-white">
+            <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
+              <span className="text-xs text-slate-400 font-medium">Total Amount</span>
+              <span className="text-xl font-bold font-mono text-emerald-400">
                 ₱{inspectingExpense.amount.toFixed(2)}
               </span>
             </div>
 
             <div>
-              <p className="text-[11px] font-mono uppercase tracking-wider text-[#8A8F98] mb-2">
-                Participant Allocations
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2.5">
+                Who Split & How Much
               </p>
-              <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {inspectingExpense.splits.map((s) => (
                   <div 
                     key={s.memberId} 
-                    className="flex items-center justify-between p-2.5 rounded-lg bg-white/[0.015] border border-white/[0.04]"
+                    className="flex items-center justify-between p-3 rounded-xl bg-white/[0.015] border border-white/5"
                   >
-                    <span className="text-xs text-[#EDEDEF]">
-                      {getMember(s.memberId)?.name}
-                    </span>
-                    <span className="font-mono text-xs text-[#8A8F98]">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-slate-200">
+                        {getMember(s.memberId)?.name}
+                      </span>
+                      {s.memberId === inspectingExpense.payerMemberId && (
+                        <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded font-mono">
+                          Payer
+                        </span>
+                      )}
+                    </div>
+                    <span className="font-mono text-sm font-semibold text-slate-300">
                       ₱{s.amountOwed.toFixed(2)}
                     </span>
                   </div>
@@ -733,16 +739,18 @@ export default function TabPage() {
                   setInspectingExpense(null);
                   openEditExpenseModal(exp);
                 }}
-                className="flex-1 py-2.5 bg-white/[0.04] hover:bg-white/[0.08] text-white font-medium rounded-xl text-xs flex items-center justify-center gap-1.5 transition border border-white/[0.06]"
+                className="flex-1 py-3 bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition"
               >
-                <Pencil size={13} /> Edit
+                <Pencil size={14} /> Edit Expense
               </button>
               <button
-                onClick={() => handleDeleteExpense(inspectingExpense.id)}
-                className="p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl transition"
+                onClick={() => {
+                  handleDeleteExpense(inspectingExpense.id);
+                }}
+                className="p-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl transition"
                 title="Delete"
               >
-                <Trash2 size={15} />
+                <Trash2 size={16} />
               </button>
             </div>
           </div>
@@ -751,25 +759,25 @@ export default function TabPage() {
 
       {/* Payment Profile Modal */}
       {isProfileModalOpen && (
-        <div className="fixed inset-0 z-50 bg-[#020203]/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="w-full max-w-md bg-[#0a0a0c] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="w-full max-w-md bg-[#121824] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-4">
             <div className="flex justify-between items-center">
-              <h3 className="text-sm font-semibold text-white">Payment Destination</h3>
-              <button onClick={() => setIsProfileModalOpen(false)} className="text-[#8A8F98] p-1">
-                <X size={18} />
+              <h3 className="text-base font-bold text-white">Your Settlement Info</h3>
+              <button onClick={() => setIsProfileModalOpen(false)} className="text-slate-400 p-1">
+                <X size={20} />
               </button>
             </div>
-            <p className="text-xs text-[#8A8F98] leading-relaxed">
-              When others settle debts with you, payments route to this destination.
+            <p className="text-xs text-slate-400">
+              When someone owes you money, they will send payment to this account.
             </p>
 
             <form onSubmit={handleSaveProfile} className="space-y-4">
               <div>
-                <label className="text-[11px] font-mono text-[#8A8F98] uppercase tracking-wider">Method</label>
+                <label className="text-xs font-semibold text-slate-400 uppercase">Payment Method</label>
                 <select
                   value={editPaymentMethod}
                   onChange={(e) => setEditPaymentMethod(e.target.value)}
-                  className="w-full mt-1.5 bg-[#121318] border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-xs focus:border-[#5E6AD2] outline-none"
+                  className="w-full mt-1 bg-[#1A2234] border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-emerald-500 outline-none"
                 >
                   <option value="GCash">GCash</option>
                   <option value="Maya">Maya</option>
@@ -779,83 +787,83 @@ export default function TabPage() {
               </div>
 
               <div>
-                <label className="text-[11px] font-mono text-[#8A8F98] uppercase tracking-wider">Account / Phone Number</label>
+                <label className="text-xs font-semibold text-slate-400 uppercase">Account / Mobile Number</label>
                 <input
                   type="text"
-                  placeholder="09171234567"
+                  placeholder="e.g. 09171234567"
                   value={editAccountNumber}
                   onChange={(e) => setEditAccountNumber(e.target.value)}
                   required
-                  className="w-full mt-1.5 bg-[#121318] border border-white/10 rounded-xl px-3.5 py-2.5 text-white font-mono text-xs focus:border-[#5E6AD2] outline-none"
+                  className="w-full mt-1 bg-white/[0.05] border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-sm focus:border-emerald-500 outline-none"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={savingProfile}
-                className="w-full bg-[#5E6AD2] hover:bg-[#6872D9] text-white font-semibold py-3 rounded-xl text-xs transition shadow-linear-cta"
+                className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3.5 rounded-xl text-sm transition"
               >
-                {savingProfile ? "Updating..." : "Save Route"}
+                {savingProfile ? "Saving..." : "Save Payment Details"}
               </button>
             </form>
           </div>
         </div>
       )}
 
-      {/* Settlement QR Modal */}
+      {/* Settle Up Modal */}
       {activeSettlement && (() => {
         const creditor = getMember(activeSettlement.creditorId);
         const debtor = getMember(activeSettlement.debtorId);
-        const hasDetails = Boolean(creditor?.account_number);
+        const hasPaymentDetails = Boolean(creditor?.account_number);
 
         return (
-          <div className="fixed inset-0 z-50 bg-[#020203]/85 backdrop-blur-md flex items-center justify-center p-5">
-            <div className="w-full max-w-sm bg-[#0a0a0c] border border-white/10 rounded-3xl p-6 text-center space-y-4 shadow-2xl">
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-5">
+            <div className="w-full max-w-sm bg-[#121824] border border-white/10 rounded-3xl p-6 text-center space-y-4">
               <div className="flex justify-between items-center">
-                <span className="text-[11px] font-mono text-[#6872D9] uppercase tracking-wider">Settlement Transfer</span>
-                <button onClick={() => setActiveSettlement(null)} className="text-[#8A8F98] p-1">
-                  <X size={18} />
+                <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Settlement Transfer</span>
+                <button onClick={() => setActiveSettlement(null)} className="text-slate-400 p-1">
+                  <X size={20} />
                 </button>
               </div>
 
               <div>
-                <p className="text-xs text-[#8A8F98]">
-                  <span className="text-rose-300 font-medium">{debtor?.name}</span> transfers to <span className="text-[#6872D9] font-medium">{creditor?.name}</span>
+                <p className="text-xs text-slate-400">
+                  <span className="text-rose-400 font-semibold">{debtor?.name}</span> pays <span className="text-emerald-400 font-semibold">{creditor?.name}</span>
                 </p>
-                <p className="text-3xl font-semibold font-mono text-white mt-1">
+                <p className="text-3xl font-black font-mono text-white mt-1">
                   ₱{activeSettlement.amount.toFixed(2)}
                 </p>
               </div>
 
-              {hasDetails ? (
-                <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.06] space-y-2 text-left">
-                  <div className="flex items-center justify-between text-xs text-[#8A8F98]">
+              {hasPaymentDetails ? (
+                <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2 text-left">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
                     <span>{creditor?.payment_method || "E-Wallet"}</span>
-                    <Smartphone size={13} className="text-[#6872D9]" />
+                    <Smartphone size={14} className="text-emerald-400" />
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="font-mono text-white font-semibold text-sm">
+                    <span className="font-mono text-white font-semibold text-base">
                       {creditor?.account_number}
                     </span>
                     <button
                       onClick={() => copyToClipboard(creditor?.account_number || "")}
-                      className="text-[11px] text-[#6872D9] bg-[#5E6AD2]/10 px-2 py-1 rounded-md hover:bg-[#5E6AD2]/20 flex items-center gap-1 transition"
+                      className="text-xs text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg hover:bg-emerald-500/20 flex items-center gap-1"
                     >
-                      {copied ? <Check size={11} /> : <Copy size={11} />}
+                      {copied ? <Check size={12} /> : <Copy size={12} />}
                       {copied ? "Copied" : "Copy"}
                     </button>
                   </div>
                 </div>
               ) : (
-                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300">
-                  {creditor?.name} has not registered a destination account.
+                <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300">
+                  {creditor?.name} has not added their GCash/Maya number yet.
                 </div>
               )}
 
               <div className="bg-white p-3 rounded-2xl w-fit mx-auto shadow-inner">
                 <QRCodeSVG
                   value={
-                    hasDetails
+                    hasPaymentDetails
                       ? `${creditor?.payment_method?.toLowerCase()}://${creditor?.account_number}?amount=${activeSettlement.amount}`
                       : `evenly://pay?recipient=${encodeURIComponent(creditor?.name || "")}&amount=${activeSettlement.amount}`
                   }
@@ -868,21 +876,21 @@ export default function TabPage() {
                 <button
                   onClick={() => handleConfirmSettlement(activeSettlement)}
                   disabled={settling}
-                  className="w-full bg-[#5E6AD2] hover:bg-[#6872D9] text-white font-semibold py-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-linear-cta disabled:opacity-50"
+                  className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-1.5 transition disabled:opacity-50"
                 >
                   {settling ? (
-                    <Loader2 size={15} className="animate-spin" />
+                    <Loader2 size={16} className="animate-spin" />
                   ) : (
                     <>
-                      <CheckCircle2 size={15} /> Confirm Payment
+                      <CheckCircle2 size={16} /> Mark as Paid
                     </>
                   )}
                 </button>
                 <button
                   onClick={() => setActiveSettlement(null)}
-                  className="w-full bg-white/[0.03] hover:bg-white/[0.06] text-[#8A8F98] font-medium py-2 rounded-xl text-xs transition"
+                  className="w-full bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 font-semibold py-2.5 rounded-xl text-xs transition"
                 >
-                  Dismiss
+                  Cancel
                 </button>
               </div>
             </div>
@@ -892,33 +900,33 @@ export default function TabPage() {
 
       {/* Add/Edit Expense Modal */}
       {isExpenseModalOpen && (
-        <div className="fixed inset-0 z-50 bg-[#020203]/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="w-full max-w-md bg-[#0a0a0c] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="w-full max-w-md bg-[#121824] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center">
-              <h3 className="text-sm font-semibold text-white">
-                {editingExpenseId ? "Modify Expense" : "Record Expense"}
+              <h3 className="text-base font-bold text-white">
+                {editingExpenseId ? "Edit Expense" : "Log an Expense"}
               </h3>
-              <button onClick={() => setIsExpenseModalOpen(false)} className="text-[#8A8F98] p-1">
-                <X size={18} />
+              <button onClick={() => setIsExpenseModalOpen(false)} className="text-slate-400 p-1">
+                <X size={20} />
               </button>
             </div>
 
             <form onSubmit={handleSaveExpense} className="space-y-4">
               <div>
-                <label className="text-[11px] font-mono uppercase tracking-wider text-[#8A8F98]">Title</label>
+                <label className="text-xs font-semibold text-slate-400 uppercase">Expense Title</label>
                 <input
                   type="text"
-                  placeholder="e.g. Dinner, Grab ride"
+                  placeholder="e.g. Samgyup, Grab, Drinks"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   required
                   disabled={submittingExpense}
-                  className="w-full mt-1.5 bg-[#121318] border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-xs focus:border-[#5E6AD2] outline-none"
+                  className="w-full mt-1 bg-white/[0.05] border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-emerald-500 outline-none"
                 />
               </div>
 
               <div>
-                <label className="text-[11px] font-mono uppercase tracking-wider text-[#8A8F98]">Total Amount (₱)</label>
+                <label className="text-xs font-semibold text-slate-400 uppercase">Total Amount (₱)</label>
                 <input
                   type="number"
                   step="0.01"
@@ -927,16 +935,16 @@ export default function TabPage() {
                   onChange={(e) => setAmount(e.target.value)}
                   required
                   disabled={submittingExpense}
-                  className="w-full mt-1.5 bg-[#121318] border border-white/10 rounded-xl px-3.5 py-2.5 text-white font-mono text-sm focus:border-[#5E6AD2] outline-none"
+                  className="w-full mt-1 bg-white/[0.05] border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-base focus:border-emerald-500 outline-none"
                 />
               </div>
 
               <div>
-                <label className="text-[11px] font-mono uppercase tracking-wider text-[#8A8F98]">Paid By</label>
+                <label className="text-xs font-semibold text-slate-400 uppercase">Who Paid?</label>
                 <select
                   value={payerId}
                   onChange={(e) => setPayerId(e.target.value)}
-                  className="w-full mt-1.5 bg-[#121318] border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-xs focus:border-[#5E6AD2] outline-none"
+                  className="w-full mt-1 bg-[#1A2234] border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-emerald-500 outline-none"
                 >
                   {members.map((m) => (
                     <option key={m.id} value={m.id}>{m.name}</option>
@@ -944,16 +952,17 @@ export default function TabPage() {
                 </select>
               </div>
 
+              {/* Split Mode Selector */}
               <div>
-                <label className="text-[11px] font-mono uppercase tracking-wider text-[#8A8F98] mb-1.5 block">Split Method</label>
-                <div className="grid grid-cols-2 gap-1.5 p-1 bg-white/[0.02] border border-white/10 rounded-xl">
+                <label className="text-xs font-semibold text-slate-400 uppercase mb-2 block">Split Method</label>
+                <div className="grid grid-cols-2 gap-2 p-1 bg-white/[0.03] border border-white/10 rounded-xl">
                   <button
                     type="button"
                     onClick={() => setSplitMode("equal")}
-                    className={`py-1.5 rounded-lg text-xs font-medium transition ${
+                    className={`py-2 rounded-lg text-xs font-semibold transition ${
                       splitMode === "equal"
-                        ? "bg-[#5E6AD2] text-white shadow-linear-cta"
-                        : "text-[#8A8F98] hover:text-white"
+                        ? "bg-emerald-500 text-black shadow-sm"
+                        : "text-slate-400 hover:text-white"
                     }`}
                   >
                     Equally
@@ -961,21 +970,22 @@ export default function TabPage() {
                   <button
                     type="button"
                     onClick={() => setSplitMode("exact")}
-                    className={`py-1.5 rounded-lg text-xs font-medium transition ${
+                    className={`py-2 rounded-lg text-xs font-semibold transition ${
                       splitMode === "exact"
-                        ? "bg-[#5E6AD2] text-white shadow-linear-cta"
-                        : "text-[#8A8F98] hover:text-white"
+                        ? "bg-emerald-500 text-black shadow-sm"
+                        : "text-slate-400 hover:text-white"
                     }`}
                   >
-                    Exact Shares
+                    Exact Amounts
                   </button>
                 </div>
               </div>
 
+              {/* Dynamic Split Input Area */}
               {splitMode === "equal" ? (
                 <div>
-                  <label className="text-[11px] font-mono uppercase tracking-wider text-[#8A8F98] mb-1.5 block">Split With</label>
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <label className="text-xs font-semibold text-slate-400 uppercase mb-2 block">Split Between</label>
+                  <div className="grid grid-cols-2 gap-2">
                     {members.map((m) => {
                       const isChecked = selectedMembers.includes(m.id);
                       return (
@@ -991,40 +1001,40 @@ export default function TabPage() {
                               setSelectedMembers([...selectedMembers, m.id]);
                             }
                           }}
-                          className={`px-3 py-2 rounded-xl border text-xs flex items-center justify-between transition ${
+                          className={`px-3 py-2.5 rounded-xl border text-xs font-medium flex items-center justify-between transition ${
                             isChecked
-                              ? "bg-[#5E6AD2]/15 border-[#5E6AD2]/40 text-white"
-                              : "bg-white/[0.015] border-white/5 text-[#8A8F98]"
+                              ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-400"
+                              : "bg-white/[0.02] border-white/5 text-slate-400"
                           }`}
                         >
                           {m.name}
-                          {isChecked && <Check size={12} className="text-[#6872D9]" />}
+                          {isChecked && <Check size={14} />}
                         </button>
                       );
                     })}
                   </div>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-[11px] font-mono">
-                    <span className="text-[#8A8F98]">Allocated</span>
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-slate-400 uppercase">Custom Amounts</span>
                     <span
-                      className={
+                      className={`font-mono font-medium ${
                         Math.abs(totalExactAllocated - (parseFloat(amount) || 0)) < 0.01
-                          ? "text-[#6872D9]"
+                          ? "text-emerald-400"
                           : "text-rose-400"
-                      }
+                      }`}
                     >
                       ₱{totalExactAllocated.toFixed(2)} / ₱{(parseFloat(amount) || 0).toFixed(2)}
                     </span>
                   </div>
 
-                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                     {members.map((m) => (
-                      <div key={m.id} className="flex items-center justify-between gap-2 bg-white/[0.015] border border-white/5 p-2 rounded-lg">
-                        <span className="text-xs text-[#EDEDEF]">{m.name}</span>
-                        <div className="flex items-center gap-1 w-28">
-                          <span className="text-xs text-[#8A8F98] font-mono">₱</span>
+                      <div key={m.id} className="flex items-center justify-between gap-3 bg-white/[0.02] border border-white/5 p-2.5 rounded-xl">
+                        <span className="text-xs font-medium text-slate-300">{m.name}</span>
+                        <div className="flex items-center gap-1.5 w-32">
+                          <span className="text-xs text-slate-500">₱</span>
                           <input
                             type="number"
                             step="0.01"
@@ -1036,7 +1046,7 @@ export default function TabPage() {
                                 [m.id]: e.target.value,
                               })
                             }
-                            className="w-full bg-[#121318] border border-white/10 rounded-md px-2 py-1 text-right font-mono text-xs text-white outline-none focus:border-[#5E6AD2]"
+                            className="w-full bg-white/[0.05] border border-white/10 rounded-lg px-2.5 py-1.5 text-right font-mono text-xs text-white outline-none focus:border-emerald-500"
                           />
                         </div>
                       </div>
@@ -1044,8 +1054,8 @@ export default function TabPage() {
                   </div>
 
                   {Math.abs(totalExactAllocated - (parseFloat(amount) || 0)) > 0.05 && (
-                    <p className="text-[11px] text-rose-400 flex items-center gap-1 font-mono">
-                      <AlertCircle size={12} /> Shares must equal total amount.
+                    <p className="text-[11px] text-rose-400 flex items-center gap-1">
+                      <AlertCircle size={12} /> Sum does not match total expense.
                     </p>
                   )}
                 </div>
@@ -1054,12 +1064,12 @@ export default function TabPage() {
               <button
                 type="submit"
                 disabled={submittingExpense}
-                className="w-full bg-[#5E6AD2] hover:bg-[#6872D9] text-white font-semibold py-3.5 rounded-xl text-xs mt-2 transition shadow-linear-cta disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3.5 rounded-xl text-sm mt-2 transition shadow-lg shadow-emerald-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {submittingExpense ? (
-                  <Loader2 size={14} className="animate-spin" />
+                  <Loader2 size={16} className="animate-spin" />
                 ) : (
-                  editingExpenseId ? "Update Entry" : "Save Entry"
+                  editingExpenseId ? "Update Expense" : "Save Expense"
                 )}
               </button>
             </form>
