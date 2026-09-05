@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:00C9A7,100:6C5CE7&height=220&section=header&text=Evenly&fontSize=70&fontColor=ffffff&animation=fadeIn&fontAlignY=38&desc=Split%20%26%20Settle%2C%20effortlessly&descAlignY=58&descSize=20" width="100%"/>
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:00C9A7,100:6C5CE7&height=220&section=header&text=Evenly&fontSize=70&fontColor=ffffff&animation=fadeIn&fontAlignY=38&desc=Split%20and%20Settle%2C%20effortlessly&descAlignY=58&descSize=20" width="100%"/>
 
 <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&size=20&duration=3000&pause=800&color=6C5CE7&center=true&vCenter=true&width=600&lines=Create+a+tab.+Add+friends.+Settle+up.;No+accounts.+No+setup.+Just+split.;Built+with+Next.js+%2B+Supabase+%E2%9A%A1" alt="Typing SVG" />
 
