@@ -8,7 +8,7 @@ import {
   Receipt, Share2, X, Loader2,
   Copy, Edit3, Smartphone, CheckCircle2, Trash2, Pencil,
   History, ChevronDown, ChevronUp, RotateCcw, AlertCircle,
-  UserPlus, Users
+  UserPlus, Users, Upload, Image as ImageIcon
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -27,6 +27,7 @@ interface TabRecord {
 interface FullMember extends Member {
   payment_method?: string;
   account_number?: string;
+  qr_image_url?: string;
 }
 
 interface DetailedExpense extends Expense {
@@ -73,6 +74,8 @@ export default function TabPage() {
   // Payment profile state
   const [editPaymentMethod, setEditPaymentMethod] = useState("GCash");
   const [editAccountNumber, setEditAccountNumber] = useState("");
+  const [editQrFile, setEditQrFile] = useState<File | null>(null);
+  const [editQrPreview, setEditQrPreview] = useState<string | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
 
   // Expense form state
@@ -115,7 +118,7 @@ export default function TabPage() {
 
       const { data: memberData, error: memErr } = await supabase
         .from("tab_members")
-        .select("id, name, payment_method, account_number")
+        .select("id, name, payment_method, account_number, qr_image_url")
         .eq("tab_id", tabData.id);
 
       if (memErr) throw memErr;
@@ -215,6 +218,8 @@ export default function TabPage() {
     if (target) {
       setEditPaymentMethod(target.payment_method || "GCash");
       setEditAccountNumber(target.account_number || "");
+      setEditQrPreview(target.qr_image_url || null);
+      setEditQrFile(null);
     }
   };
 
@@ -224,11 +229,33 @@ export default function TabPage() {
 
     setSavingProfile(true);
     try {
+      let qrImageUrl = editQrPreview;
+
+      // Upload QR Image if a new file is selected
+      if (editQrFile) {
+        const fileExt = editQrFile.name.split(".").pop();
+        const fileName = `${currentMemberId}-${Math.random().toString(36.substring(2))}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("qr-codes")
+          .upload(filePath, editQrFile);
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = supabase.storage
+          .from("qr-codes")
+          .getPublicUrl(filePath);
+
+        qrImageUrl = publicUrlData.publicUrl;
+      }
+
       const { error } = await supabase
         .from("tab_members")
         .update({
           payment_method: editPaymentMethod,
           account_number: editAccountNumber.trim(),
+          qr_image_url: qrImageUrl,
         })
         .eq("id", currentMemberId);
 
@@ -657,6 +684,8 @@ export default function TabPage() {
                 if (current) {
                   setEditPaymentMethod(current.payment_method || "GCash");
                   setEditAccountNumber(current.account_number || "");
+                  setEditQrPreview(current.qr_image_url || null);
+                  setEditQrFile(null);
                 }
                 setIsProfileModalOpen(true);
               }}
@@ -1046,6 +1075,36 @@ export default function TabPage() {
                 />
               </div>
 
+              {/* QR Code Image Upload */}
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5 block">
+                  Upload QR Code Image (Optional)
+                </label>
+                <div className="flex items-center gap-3">
+                  {editQrPreview && (
+                    <div className="relative w-14 h-14 rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-black/5 shrink-0">
+                      <Image src={editQrPreview} alt="QR Preview" fill className="object-cover" />
+                    </div>
+                  )}
+                  <label className="flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-slate-300 dark:border-white/20 bg-slate-50 dark:bg-white/[0.02] hover:bg-slate-100 dark:hover:bg-white/[0.05] cursor-pointer text-xs text-slate-600 dark:text-slate-300 transition">
+                    <Upload size={15} />
+                    <span>{editQrFile ? editQrFile.name : "Choose QR Image..."}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setEditQrFile(file);
+                          setEditQrPreview(URL.createObjectURL(file));
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+
               <button
                 type="submit"
                 disabled={savingProfile}
@@ -1063,6 +1122,7 @@ export default function TabPage() {
         const creditor = getMember(activeSettlement.creditorId);
         const debtor = getMember(activeSettlement.debtorId);
         const hasPaymentDetails = Boolean(creditor?.account_number);
+        const hasCustomQr = Boolean(creditor?.qr_image_url);
 
         return (
           <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-5 animate-fade-in">
@@ -1108,16 +1168,23 @@ export default function TabPage() {
                 </div>
               )}
 
+              {/* Display Custom Uploaded QR or Fallback to Generated QR */}
               <div className="bg-white p-3 rounded-2xl w-fit mx-auto shadow-inner border border-black/5">
-                <QRCodeSVG
-                  value={
-                    hasPaymentDetails
-                      ? `${creditor?.payment_method?.toLowerCase()}://${creditor?.account_number}?amount=${activeSettlement.amount}`
-                      : `evenly://pay?recipient=${encodeURIComponent(creditor?.name || "")}&amount=${activeSettlement.amount}`
-                  }
-                  size={140}
-                  level="M"
-                />
+                {hasCustomQr ? (
+                  <div className="relative w-40 h-40 rounded-xl overflow-hidden">
+                    <Image src={creditor.qr_image_url!} alt="Custom QR" fill className="object-contain" />
+                  </div>
+                ) : (
+                  <QRCodeSVG
+                    value={
+                      hasPaymentDetails
+                        ? `${creditor?.payment_method?.toLowerCase()}://${creditor?.account_number}?amount=${activeSettlement.amount}`
+                        : `evenly://pay?recipient=${encodeURIComponent(creditor?.name || "")}&amount=${activeSettlement.amount}`
+                    }
+                    size={140}
+                    level="M"
+                  />
+                )}
               </div>
 
               <div className="space-y-2 pt-2">
