@@ -1089,7 +1089,7 @@ export default function TabPage() {
                 <div className="flex items-center gap-3">
                   {editQrPreview && (
                     <div className="relative w-14 h-14 rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-black/5 shrink-0">
-                      <Image src={editQrPreview} alt="QR Preview" fill className="object-cover" />
+                      <img src={editQrPreview} alt="QR Preview" className="w-full h-full object-cover" />
                     </div>
                   )}
                   <label className="flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-slate-300 dark:border-white/20 bg-slate-50 dark:bg-white/[0.02] hover:bg-slate-100 dark:hover:bg-white/[0.05] cursor-pointer text-xs text-slate-600 dark:text-slate-300 transition">
@@ -1191,8 +1191,15 @@ export default function TabPage() {
               {(hasCustomQr || hasPaymentDetails) && (
                 <div className="bg-white p-3 rounded-2xl w-fit mx-auto shadow-inner border border-black/5">
                   {hasCustomQr ? (
-                    <div className="relative w-40 h-40 rounded-xl overflow-hidden">
-                      <Image src={creditor!.qr_image_url!} alt="Custom QR" fill className="object-contain" />
+                    <div className="w-40 h-40 rounded-xl overflow-hidden flex items-center justify-center bg-white">
+                      <img 
+                        src={creditor!.qr_image_url!} 
+                        alt="Custom QR" 
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          console.error("Failed to load QR image:", creditor?.qr_image_url);
+                        }}
+                      />
                     </div>
                   ) : (
                     <QRCodeSVG
