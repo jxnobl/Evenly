@@ -100,7 +100,6 @@ export default function TabPage({ params }: { params: Promise<{ slug: string }> 
 
       setExpenses(formattedExpenses);
 
-      // Fetch confirmed payments
       const { data: payData, error: payErr } = await supabase
         .from("payments")
         .select("payer_id, receiver_id, amount")
