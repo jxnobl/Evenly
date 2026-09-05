@@ -99,7 +99,6 @@ export default function TabPage() {
       }
       setTab(tabData);
 
-      // Save tab to local recent tabs history
       try {
         const existing = JSON.parse(localStorage.getItem("evenly_recent_tabs") || "[]");
         const filtered = existing.filter((item: { slug: string }) => item.slug !== tabData.slug);
@@ -463,19 +462,19 @@ export default function TabPage() {
     return (
       <div className="min-h-screen bg-[#0B0F17] flex items-center justify-center text-slate-400 gap-2">
         <Loader2 size={20} className="animate-spin text-emerald-400" />
-        <span>Loading Tab...</span>
+        <span className="animate-pulse">Loading Tab...</span>
       </div>
     );
   }
 
   if (!tab) {
     return (
-      <div className="min-h-screen bg-[#0B0F17] flex flex-col items-center justify-center text-slate-400 gap-3 p-6 text-center">
+      <div className="min-h-screen bg-[#0B0F17] flex flex-col items-center justify-center text-slate-400 gap-3 p-6 text-center animate-fade-in">
         <p className="text-white font-semibold">Tab not found</p>
         <p className="text-sm text-slate-500">
           {fetchError ? `Error: ${fetchError}` : `No tab found matching slug "${slug}".`}
         </p>
-        <Link href="/" className="px-4 py-2 rounded-xl bg-emerald-500 text-black font-semibold text-sm">
+        <Link href="/" className="px-4 py-2 rounded-xl bg-emerald-500 text-black font-semibold text-sm active:scale-95 transition">
           Return Home
         </Link>
       </div>
@@ -487,9 +486,9 @@ export default function TabPage() {
 
   return (
     <main className="min-h-screen bg-[#0B0F17] text-slate-100 max-w-md mx-auto pb-28 relative">
-      <header className="sticky top-0 z-20 bg-[#0B0F17]/80 backdrop-blur-md px-5 py-4 border-b border-white/5 flex items-center justify-between">
+      <header className="sticky top-0 z-20 bg-[#0B0F17]/80 backdrop-blur-md px-5 py-4 border-b border-white/5 flex items-center justify-between transition-all">
         <div className="flex items-center gap-3">
-          <Link href="/" className="p-2 -ml-2 rounded-xl bg-white/[0.03] text-slate-400 hover:text-white">
+          <Link href="/" className="p-2 -ml-2 rounded-xl bg-white/[0.03] text-slate-400 hover:text-white active:scale-95 transition">
             <ArrowLeft size={18} />
           </Link>
           <div>
@@ -502,7 +501,7 @@ export default function TabPage() {
             navigator.clipboard.writeText(window.location.href);
             alert("Invite link copied to clipboard!");
           }}
-          className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+          className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 active:scale-95 transition"
         >
           <Share2 size={18} />
         </button>
@@ -516,9 +515,9 @@ export default function TabPage() {
             <button
               key={m.id}
               onClick={() => handleClaimIdentity(m.id)}
-              className={`text-xs px-3 py-1 rounded-full whitespace-nowrap transition ${
+              className={`text-xs px-3 py-1 rounded-full whitespace-nowrap transition-all duration-200 active:scale-95 ${
                 currentMemberId === m.id
-                  ? "bg-emerald-500 text-black font-semibold"
+                  ? "bg-emerald-500 text-black font-semibold shadow-md shadow-emerald-500/20"
                   : "bg-white/[0.04] text-slate-400 hover:bg-white/[0.08]"
               }`}
             >
@@ -530,7 +529,7 @@ export default function TabPage() {
         <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={() => setIsAddMemberModalOpen(true)}
-            className="p-1.5 text-slate-400 hover:text-emerald-400 rounded-lg hover:bg-white/[0.04] transition"
+            className="p-1.5 text-slate-400 hover:text-emerald-400 rounded-lg hover:bg-white/[0.04] active:scale-90 transition"
             title="Add new member to this tab"
           >
             <UserPlus size={16} />
@@ -546,7 +545,7 @@ export default function TabPage() {
                 }
                 setIsProfileModalOpen(true);
               }}
-              className="p-1.5 text-slate-400 hover:text-emerald-400 rounded-lg hover:bg-white/[0.04] transition"
+              className="p-1.5 text-slate-400 hover:text-emerald-400 rounded-lg hover:bg-white/[0.04] active:scale-90 transition"
               title="Edit payment info"
             >
               <Edit3 size={15} />
@@ -557,7 +556,7 @@ export default function TabPage() {
 
       <div className="p-5 space-y-6">
         {/* Settlements */}
-        <section className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 backdrop-blur-md">
+        <section className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 backdrop-blur-md shadow-lg animate-fade-in">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
               <Wallet size={14} className="text-emerald-400" /> Suggested Settle Up
@@ -568,7 +567,7 @@ export default function TabPage() {
           </div>
 
           {settlements.length === 0 ? (
-            <div className="text-center py-6 text-sm text-slate-500">
+            <div className="text-center py-6 text-sm text-slate-500 animate-fade-in">
               🎉 Everyone is fully settled up!
             </div>
           ) : (
@@ -578,7 +577,7 @@ export default function TabPage() {
                 const debtor = getMember(s.debtorId);
 
                 return (
-                  <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5">
+                  <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5 hover:border-emerald-500/20 transition duration-200">
                     <div className="text-sm">
                       <span className="font-semibold text-rose-400">{debtor?.name}</span>
                       <span className="text-slate-500 mx-1.5">&rarr;</span>
@@ -591,7 +590,7 @@ export default function TabPage() {
                           setActiveSettlement(s);
                           setCopied(false);
                         }}
-                        className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg text-xs font-semibold flex items-center gap-1"
+                        className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg text-xs font-semibold flex items-center gap-1 active:scale-95 transition"
                       >
                         <QrCode size={13} /> Settle
                       </button>
@@ -609,7 +608,7 @@ export default function TabPage() {
             <Receipt size={14} className="text-emerald-400" /> Logged Expenses
           </h2>
           {expenses.length === 0 ? (
-            <div className="text-center py-8 text-sm text-slate-600">
+            <div className="text-center py-8 text-sm text-slate-600 animate-fade-in">
               No expenses recorded yet. Tap below to add one.
             </div>
           ) : (
@@ -617,7 +616,7 @@ export default function TabPage() {
               <div 
                 key={exp.id} 
                 onClick={() => setInspectingExpense(exp)}
-                className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2 cursor-pointer hover:border-white/10 transition"
+                className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2 cursor-pointer hover:border-white/10 hover:bg-white/[0.035] active:scale-[0.99] transition duration-200"
               >
                 <div className="flex items-center justify-between">
                   <div>
@@ -631,14 +630,14 @@ export default function TabPage() {
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => openEditExpenseModal(exp)}
-                        className="p-1.5 text-slate-500 hover:text-white rounded-lg transition"
+                        className="p-1.5 text-slate-500 hover:text-white rounded-lg active:scale-90 transition"
                         title="Edit expense"
                       >
                         <Pencil size={14} />
                       </button>
                       <button
                         onClick={() => handleDeleteExpense(exp.id)}
-                        className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg transition"
+                        className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg active:scale-90 transition"
                         title="Delete expense"
                       >
                         <Trash2 size={14} />
@@ -666,7 +665,7 @@ export default function TabPage() {
             </button>
 
             {showHistory && (
-              <div className="space-y-2">
+              <div className="space-y-2 animate-fade-in">
                 {payments.map((p) => {
                   const debtor = getMember(p.payer_id);
                   const creditor = getMember(p.receiver_id);
@@ -674,7 +673,7 @@ export default function TabPage() {
                   return (
                     <div
                       key={p.id}
-                      className="flex items-center justify-between p-3.5 rounded-xl bg-white/[0.015] border border-white/5 text-xs"
+                      className="flex items-center justify-between p-3.5 rounded-xl bg-white/[0.015] border border-white/5 text-xs hover:border-white/10 transition"
                     >
                       <div className="space-y-0.5">
                         <div className="text-slate-300">
@@ -699,7 +698,7 @@ export default function TabPage() {
                         </span>
                         <button
                           onClick={() => handleDeletePayment(p.id)}
-                          className="p-1 text-slate-600 hover:text-amber-400 transition"
+                          className="p-1 text-slate-600 hover:text-amber-400 active:scale-90 transition"
                           title="Undo payment"
                         >
                           <RotateCcw size={13} />
@@ -715,8 +714,8 @@ export default function TabPage() {
       </div>
 
       {/* Floating CTA */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#0B0F17] via-[#0B0F17]/90 to-transparent">
-        <div className="max-w-md mx-auto">
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#0B0F17] via-[#0B0F17]/90 to-transparent z-10 pointer-events-none">
+        <div className="max-w-md mx-auto pointer-events-auto">
           <button
             onClick={openNewExpenseModal}
             className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-[0.98] transition text-sm"
@@ -728,13 +727,13 @@ export default function TabPage() {
 
       {/* Add Member Modal */}
       {isAddMemberModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="w-full max-w-sm bg-[#121824] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
+          <div className="w-full max-w-sm bg-[#121824] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-4 animate-sheet-up">
             <div className="flex justify-between items-center">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <UserPlus size={18} className="text-emerald-400" /> Add Person to Tab
               </h3>
-              <button onClick={() => setIsAddMemberModalOpen(false)} className="text-slate-400 p-1">
+              <button onClick={() => setIsAddMemberModalOpen(false)} className="text-slate-400 hover:text-white p-1 active:scale-90 transition">
                 <X size={20} />
               </button>
             </div>
@@ -753,14 +752,14 @@ export default function TabPage() {
                   required
                   autoFocus
                   disabled={addingMember}
-                  className="w-full mt-1 bg-white/[0.05] border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-emerald-500 outline-none"
+                  className="w-full mt-1 bg-white/[0.05] border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-emerald-500 outline-none transition"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={addingMember}
-                className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3.5 rounded-xl text-sm transition flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3.5 rounded-xl text-sm transition flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
               >
                 {addingMember ? <Loader2 size={16} className="animate-spin" /> : "Add to Group"}
               </button>
@@ -771,8 +770,8 @@ export default function TabPage() {
 
       {/* Expense Detail Modal */}
       {inspectingExpense && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="w-full max-w-md bg-[#121824] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-5">
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
+          <div className="w-full max-w-md bg-[#121824] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-5 animate-sheet-up">
             <div className="flex justify-between items-start">
               <div>
                 <h3 className="text-lg font-bold text-white leading-tight">
@@ -784,7 +783,7 @@ export default function TabPage() {
               </div>
               <button 
                 onClick={() => setInspectingExpense(null)} 
-                className="text-slate-400 hover:text-white p-1"
+                className="text-slate-400 hover:text-white p-1 active:scale-90 transition"
               >
                 <X size={20} />
               </button>
@@ -832,13 +831,15 @@ export default function TabPage() {
                   setInspectingExpense(null);
                   openEditExpenseModal(exp);
                 }}
-                className="flex-1 py-3 bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition"
+                className="flex-1 py-3 bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 active:scale-95 transition"
               >
                 <Pencil size={14} /> Edit Expense
               </button>
               <button
-                onClick={() => handleDeleteExpense(inspectingExpense.id)}
-                className="p-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl transition"
+                onClick={() => {
+                  handleDeleteExpense(inspectingExpense.id);
+                }}
+                className="p-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl active:scale-90 transition"
                 title="Delete"
               >
                 <Trash2 size={16} />
@@ -850,11 +851,11 @@ export default function TabPage() {
 
       {/* Payment Profile Modal */}
       {isProfileModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="w-full max-w-md bg-[#121824] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
+          <div className="w-full max-w-md bg-[#121824] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-4 animate-sheet-up">
             <div className="flex justify-between items-center">
               <h3 className="text-base font-bold text-white">Your Settlement Info</h3>
-              <button onClick={() => setIsProfileModalOpen(false)} className="text-slate-400 p-1">
+              <button onClick={() => setIsProfileModalOpen(false)} className="text-slate-400 hover:text-white p-1 active:scale-90 transition">
                 <X size={20} />
               </button>
             </div>
@@ -885,14 +886,14 @@ export default function TabPage() {
                   value={editAccountNumber}
                   onChange={(e) => setEditAccountNumber(e.target.value)}
                   required
-                  className="w-full mt-1 bg-white/[0.05] border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-sm focus:border-emerald-500 outline-none"
+                  className="w-full mt-1 bg-white/[0.05] border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-sm focus:border-emerald-500 outline-none transition"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={savingProfile}
-                className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3.5 rounded-xl text-sm transition"
+                className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3.5 rounded-xl text-sm active:scale-95 transition"
               >
                 {savingProfile ? "Saving..." : "Save Payment Details"}
               </button>
@@ -908,11 +909,11 @@ export default function TabPage() {
         const hasPaymentDetails = Boolean(creditor?.account_number);
 
         return (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-5">
-            <div className="w-full max-w-sm bg-[#121824] border border-white/10 rounded-3xl p-6 text-center space-y-4">
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-5 animate-fade-in">
+            <div className="w-full max-w-sm bg-[#121824] border border-white/10 rounded-3xl p-6 text-center space-y-4 animate-sheet-up">
               <div className="flex justify-between items-center">
                 <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Settlement Transfer</span>
-                <button onClick={() => setActiveSettlement(null)} className="text-slate-400 p-1">
+                <button onClick={() => setActiveSettlement(null)} className="text-slate-400 hover:text-white p-1 active:scale-90 transition">
                   <X size={20} />
                 </button>
               </div>
@@ -938,7 +939,7 @@ export default function TabPage() {
                     </span>
                     <button
                       onClick={() => copyToClipboard(creditor?.account_number || "")}
-                      className="text-xs text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg hover:bg-emerald-500/20 flex items-center gap-1"
+                      className="text-xs text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg hover:bg-emerald-500/20 flex items-center gap-1 active:scale-95 transition"
                     >
                       {copied ? <Check size={12} /> : <Copy size={12} />}
                       {copied ? "Copied" : "Copy"}
@@ -967,7 +968,7 @@ export default function TabPage() {
                 <button
                   onClick={() => handleConfirmSettlement(activeSettlement)}
                   disabled={settling}
-                  className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-1.5 transition disabled:opacity-50"
+                  className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-1.5 active:scale-95 transition disabled:opacity-50"
                 >
                   {settling ? (
                     <Loader2 size={16} className="animate-spin" />
@@ -979,7 +980,7 @@ export default function TabPage() {
                 </button>
                 <button
                   onClick={() => setActiveSettlement(null)}
-                  className="w-full bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 font-semibold py-2.5 rounded-xl text-xs transition"
+                  className="w-full bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 font-semibold py-2.5 rounded-xl text-xs active:scale-95 transition"
                 >
                   Cancel
                 </button>
@@ -991,13 +992,13 @@ export default function TabPage() {
 
       {/* Add/Edit Expense Modal */}
       {isExpenseModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="w-full max-w-md bg-[#121824] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
+          <div className="w-full max-w-md bg-[#121824] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto animate-sheet-up">
             <div className="flex justify-between items-center">
               <h3 className="text-base font-bold text-white">
                 {editingExpenseId ? "Edit Expense" : "Log an Expense"}
               </h3>
-              <button onClick={() => setIsExpenseModalOpen(false)} className="text-slate-400 p-1">
+              <button onClick={() => setIsExpenseModalOpen(false)} className="text-slate-400 hover:text-white p-1 active:scale-90 transition">
                 <X size={20} />
               </button>
             </div>
@@ -1012,7 +1013,7 @@ export default function TabPage() {
                   onChange={(e) => setTitle(e.target.value)}
                   required
                   disabled={submittingExpense}
-                  className="w-full mt-1 bg-white/[0.05] border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-emerald-500 outline-none"
+                  className="w-full mt-1 bg-white/[0.05] border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-emerald-500 outline-none transition"
                 />
               </div>
 
@@ -1026,7 +1027,7 @@ export default function TabPage() {
                   onChange={(e) => setAmount(e.target.value)}
                   required
                   disabled={submittingExpense}
-                  className="w-full mt-1 bg-white/[0.05] border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-base focus:border-emerald-500 outline-none"
+                  className="w-full mt-1 bg-white/[0.05] border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-base focus:border-emerald-500 outline-none transition"
                 />
               </div>
 
@@ -1050,7 +1051,7 @@ export default function TabPage() {
                   <button
                     type="button"
                     onClick={() => setSplitMode("equal")}
-                    className={`py-2 rounded-lg text-xs font-semibold transition ${
+                    className={`py-2 rounded-lg text-xs font-semibold transition active:scale-95 ${
                       splitMode === "equal"
                         ? "bg-emerald-500 text-black shadow-sm"
                         : "text-slate-400 hover:text-white"
@@ -1061,7 +1062,7 @@ export default function TabPage() {
                   <button
                     type="button"
                     onClick={() => setSplitMode("exact")}
-                    className={`py-2 rounded-lg text-xs font-semibold transition ${
+                    className={`py-2 rounded-lg text-xs font-semibold transition active:scale-95 ${
                       splitMode === "exact"
                         ? "bg-emerald-500 text-black shadow-sm"
                         : "text-slate-400 hover:text-white"
@@ -1092,7 +1093,7 @@ export default function TabPage() {
                               setSelectedMembers([...selectedMembers, m.id]);
                             }
                           }}
-                          className={`px-3 py-2.5 rounded-xl border text-xs font-medium flex items-center justify-between transition ${
+                          className={`px-3 py-2.5 rounded-xl border text-xs font-medium flex items-center justify-between active:scale-95 transition ${
                             isChecked
                               ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-400"
                               : "bg-white/[0.02] border-white/5 text-slate-400"
@@ -1137,7 +1138,7 @@ export default function TabPage() {
                                 [m.id]: e.target.value,
                               })
                             }
-                            className="w-full bg-white/[0.05] border border-white/10 rounded-lg px-2.5 py-1.5 text-right font-mono text-xs text-white outline-none focus:border-emerald-500"
+                            className="w-full bg-white/[0.05] border border-white/10 rounded-lg px-2.5 py-1.5 text-right font-mono text-xs text-white outline-none focus:border-emerald-500 transition"
                           />
                         </div>
                       </div>
@@ -1145,7 +1146,7 @@ export default function TabPage() {
                   </div>
 
                   {Math.abs(totalExactAllocated - (parseFloat(amount) || 0)) > 0.05 && (
-                    <p className="text-[11px] text-rose-400 flex items-center gap-1">
+                    <p className="text-[11px] text-rose-400 flex items-center gap-1 animate-fade-in">
                       <AlertCircle size={12} /> Sum does not match total expense.
                     </p>
                   )}
@@ -1155,7 +1156,7 @@ export default function TabPage() {
               <button
                 type="submit"
                 disabled={submittingExpense}
-                className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3.5 rounded-xl text-sm mt-2 transition shadow-lg shadow-emerald-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3.5 rounded-xl text-sm mt-2 transition shadow-lg shadow-emerald-500/20 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {submittingExpense ? (
                   <Loader2 size={16} className="animate-spin" />
