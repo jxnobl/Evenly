@@ -2,7 +2,7 @@
 
 <img src="https://capsule-render.vercel.app/api?type=waving&color=0:00C9A7,100:6C5CE7&height=220&section=header&text=Evenly&fontSize=70&fontColor=ffffff&animation=fadeIn&fontAlignY=38&desc=Split%20%26%20Settle%2C%20effortlessly&descAlignY=58&descSize=20" width="100%"/>
 
-<img src="https://readme-typing-svg.herokuapp.com?font=Fira+Code&size=20&duration=3000&pause=800&color=6C5CE7&center=true&vCenter=true&width=600&lines=Create+a+tab.+Add+friends.+Settle+up.;No+accounts.+No+setup.+Just+split.;Built+with+Next.js+%2B+Supabase+%E2%9A%A1" alt="Typing SVG" />
+<img src="https://readme-typing-svg.demolab.com?font=Fira+Code&size=20&duration=3000&pause=800&color=6C5CE7&center=true&vCenter=true&width=600&lines=Create+a+tab.+Add+friends.+Settle+up.;No+accounts.+No+setup.+Just+split.;Built+with+Next.js+%2B+Supabase+%E2%9A%A1" alt="Typing SVG" />
 
 <br/>
 
@@ -23,10 +23,6 @@ Evenly is a personal project built to solve a simple but common problem: splitti
 After a meal, trip, or gala, figuring out who paid, who owes who, and how much everyone needs to send can get confusing. **Evenly makes the process simple** — create a tab, record expenses, see everyone's balance, and settle up.
 
 > No accounts. No complicated setup. Just share the tab and go.
-
-<div align="center">
-<img src="https://raw.githubusercontent.com/andreasbm/readme-typing-svg/master/assets/demo.svg" width="1" height="1"/>
-</div>
 
 ## ✨ Features
 
