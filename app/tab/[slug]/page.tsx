@@ -8,7 +8,7 @@ import {
   Receipt, Share2, X, Loader2,
   Copy, Edit3, Smartphone, CheckCircle2, Trash2, Pencil,
   History, ChevronDown, ChevronUp, RotateCcw, AlertCircle,
-  UserPlus, Users, Upload, Image as ImageIcon
+  UserPlus, Users, Upload
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -231,7 +231,6 @@ export default function TabPage() {
     try {
       let qrImageUrl = editQrPreview;
 
-      // Upload QR Image if a new file is selected
       if (editQrFile) {
         const fileExt = editQrFile.name.split(".").pop();
         const randomStr = Math.random().toString(36).substring(2);
@@ -1178,8 +1177,8 @@ export default function TabPage() {
                 ) : (
                   <QRCodeSVG
                     value={
-                      hasPaymentDetails
-                        ? `${creditor?.payment_method?.toLowerCase()}://${creditor?.account_number}?amount=${activeSettlement.amount}`
+                      hasPaymentDetails && creditor
+                        ? `${creditor.payment_method?.toLowerCase()}://${creditor.account_number}?amount=${activeSettlement.amount}`
                         : `evenly://pay?recipient=${encodeURIComponent(creditor?.name || "")}&amount=${activeSettlement.amount}`
                     }
                     size={140}
