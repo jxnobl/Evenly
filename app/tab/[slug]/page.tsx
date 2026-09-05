@@ -7,7 +7,8 @@ import {
   ArrowLeft, Plus, QrCode, Check, 
   Receipt, Wallet, Share2, X, Loader2,
   Copy, Edit3, Smartphone, CheckCircle2, Trash2, Pencil,
-  History, ChevronDown, ChevronUp, RotateCcw, AlertCircle
+  History, ChevronDown, ChevronUp, RotateCcw, AlertCircle,
+  UserPlus
 } from "lucide-react";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
@@ -53,6 +54,12 @@ export default function TabPage() {
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [inspectingExpense, setInspectingExpense] = useState<DetailedExpense | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  
+  // Add Member State
+  const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+  const [newMemberName, setNewMemberName] = useState("");
+  const [addingMember, setAddingMember] = useState(false);
+
   const [showHistory, setShowHistory] = useState(true);
   const [activeSettlement, setActiveSettlement] = useState<Settlement | null>(null);
   const [copied, setCopied] = useState(false);
@@ -91,6 +98,16 @@ export default function TabPage() {
         return;
       }
       setTab(tabData);
+
+      // Save tab to local recent tabs history
+      try {
+        const existing = JSON.parse(localStorage.getItem("evenly_recent_tabs") || "[]");
+        const filtered = existing.filter((item: { slug: string }) => item.slug !== tabData.slug);
+        const updated = [{ slug: tabData.slug, title: tabData.title, lastVisited: Date.now() }, ...filtered].slice(0, 10);
+        localStorage.setItem("evenly_recent_tabs", JSON.stringify(updated));
+      } catch (e) {
+        console.error("Failed to save tab history:", e);
+      }
 
       const { data: memberData, error: memErr } = await supabase
         .from("tab_members")
@@ -218,6 +235,29 @@ export default function TabPage() {
       alert(err.message || "Failed to update payment info");
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const handleAddMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanName = newMemberName.trim();
+    if (!tab || !cleanName || addingMember) return;
+
+    setAddingMember(true);
+    try {
+      const { error } = await supabase
+        .from("tab_members")
+        .insert([{ tab_id: tab.id, name: cleanName }]);
+
+      if (error) throw error;
+
+      setNewMemberName("");
+      setIsAddMemberModalOpen(false);
+      await fetchTabData();
+    } catch (err: any) {
+      alert(err.message || "Failed to add member");
+    } finally {
+      setAddingMember(false);
     }
   };
 
@@ -468,9 +508,9 @@ export default function TabPage() {
         </button>
       </header>
 
-      {/* Identity Selector */}
+      {/* Identity Selector & Add Member Button */}
       <section className="px-5 py-3 bg-white/[0.02] border-b border-white/5 flex items-center justify-between">
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 flex-1 pr-2">
           <span className="text-xs text-slate-500 shrink-0 font-medium">You:</span>
           {members.map((m) => (
             <button
@@ -487,22 +527,32 @@ export default function TabPage() {
           ))}
         </div>
 
-        {currentMemberId && (
+        <div className="flex items-center gap-1 shrink-0">
           <button
-            onClick={() => {
-              const current = getMember(currentMemberId);
-              if (current) {
-                setEditPaymentMethod(current.payment_method || "GCash");
-                setEditAccountNumber(current.account_number || "");
-              }
-              setIsProfileModalOpen(true);
-            }}
-            className="p-1.5 ml-2 text-slate-400 hover:text-emerald-400 shrink-0"
-            title="Edit payment info"
+            onClick={() => setIsAddMemberModalOpen(true)}
+            className="p-1.5 text-slate-400 hover:text-emerald-400 rounded-lg hover:bg-white/[0.04] transition"
+            title="Add new member to this tab"
           >
-            <Edit3 size={15} />
+            <UserPlus size={16} />
           </button>
-        )}
+
+          {currentMemberId && (
+            <button
+              onClick={() => {
+                const current = getMember(currentMemberId);
+                if (current) {
+                  setEditPaymentMethod(current.payment_method || "GCash");
+                  setEditAccountNumber(current.account_number || "");
+                }
+                setIsProfileModalOpen(true);
+              }}
+              className="p-1.5 text-slate-400 hover:text-emerald-400 rounded-lg hover:bg-white/[0.04] transition"
+              title="Edit payment info"
+            >
+              <Edit3 size={15} />
+            </button>
+          )}
+        </div>
       </section>
 
       <div className="p-5 space-y-6">
@@ -676,6 +726,49 @@ export default function TabPage() {
         </div>
       </div>
 
+      {/* Add Member Modal */}
+      {isAddMemberModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="w-full max-w-sm bg-[#121824] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <UserPlus size={18} className="text-emerald-400" /> Add Person to Tab
+              </h3>
+              <button onClick={() => setIsAddMemberModalOpen(false)} className="text-slate-400 p-1">
+                <X size={20} />
+              </button>
+            </div>
+            <p className="text-xs text-slate-400">
+              New members will immediately be able to join expenses and settle balances.
+            </p>
+
+            <form onSubmit={handleAddMember} className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-400 uppercase">Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Alex, Sarah"
+                  value={newMemberName}
+                  onChange={(e) => setNewMemberName(e.target.value)}
+                  required
+                  autoFocus
+                  disabled={addingMember}
+                  className="w-full mt-1 bg-white/[0.05] border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-emerald-500 outline-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={addingMember}
+                className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3.5 rounded-xl text-sm transition flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {addingMember ? <Loader2 size={16} className="animate-spin" /> : "Add to Group"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Expense Detail Modal */}
       {inspectingExpense && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -744,9 +837,7 @@ export default function TabPage() {
                 <Pencil size={14} /> Edit Expense
               </button>
               <button
-                onClick={() => {
-                  handleDeleteExpense(inspectingExpense.id);
-                }}
+                onClick={() => handleDeleteExpense(inspectingExpense.id)}
                 className="p-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl transition"
                 title="Delete"
               >
