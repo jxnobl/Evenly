@@ -10,13 +10,17 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Evenly - Frictionless Group Splitter",
-  description: "Split expenses and settle up instantly with QR Ph, GCash, and Maya.",
+  title: "Evenly - Frictionless Group Splitting",
+  description: "Split expenses and settle up instantly with GCash, Maya, and QR Ph.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "Evenly",
+  },
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icon.svg",
   },
 };
 
@@ -26,8 +30,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className="bg-[#0B0F17] text-slate-100 antialiased selection:bg-emerald-500/30 selection:text-emerald-400">
+    <html lang="en" className="dark">
+      <body className="bg-[#0B0F17] text-slate-100 antialiased selection:bg-emerald-500 selection:text-black">
         {children}
       </body>
     </html>

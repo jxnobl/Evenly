@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <radialGradient id="bgGrad" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#161F30"/>
+      <stop offset="100%" stop-color="#0B0F17"/>
+    </radialGradient>
+
+    <!-- Emerald Glow Filter -->
+    <filter id="subtleGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+
+    <!-- Linear Gradient for Balance Lines -->
+    <linearGradient id="emeraldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#34D399"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Canvas Background (App Icon Shape) -->
+  <rect width="512" height="512" rx="128" fill="url(#bgGrad)"/>
+  
+  <!-- Subtle Outer Accent Ring (The Shared Pool / Coin) -->
+  <circle cx="256" cy="256" r="168" stroke="#1E293B" stroke-width="8" fill="none" opacity="0.8"/>
+
+  <!-- Equal / Fair Balance Bars (Dynamic Flow) -->
+  <!-- Top Split Bar -->
+  <rect x="160" y="210" width="192" height="28" rx="14" fill="url(#emeraldGrad)" filter="url(#subtleGlow)"/>
+
+  <!-- Bottom Split Bar -->
+  <rect x="160" y="274" width="192" height="28" rx="14" fill="url(#emeraldGrad)" filter="url(#subtleGlow)"/>
+
+  <!-- Equal Node Dots (Representing Connected People) -->
+  <!-- Left Side Node -->
+  <circle cx="120" cy="256" r="18" fill="#10B981"/>
+  <circle cx="120" cy="256" r="30" stroke="#10B981" stroke-width="3" fill="none" opacity="0.3"/>
+
+  <!-- Right Side Node -->
+  <circle cx="392" cy="256" r="18" fill="#10B981"/>
+  <circle cx="392" cy="256" r="30" stroke="#10B981" stroke-width="3" fill="none" opacity="0.3"/>
+</svg>
