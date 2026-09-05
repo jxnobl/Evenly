@@ -11,6 +11,7 @@
 ![Tailwind](https://img.shields.io/badge/TailwindCSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
 ![Vercel](https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)
+![PWA](https://img.shields.io/badge/PWA-Installable-5A0FC8?style=for-the-badge&logo=pwa&logoColor=white)
 
 </div>
 
@@ -41,6 +42,9 @@ Calculates simpler ways to settle group balances.
 
 **📱 GCash, Maya & QR Ph**
 Add payment details or upload a personal QR code.
+
+**📲 Installable PWA**
+Add Evenly to your phone's home screen and use it like a native app.
 
 </td>
 <td width="50%">
@@ -75,6 +79,7 @@ Create a tab and share it with your friends.
 | TypeScript | PostgreSQL | | |
 | Tailwind CSS | Supabase Realtime | | |
 | Lucide React | Supabase Storage | | |
+| PWA (manifest + service worker) | | | |
 
 </div>
 
