@@ -227,6 +227,11 @@ export default function TabPage() {
     e.preventDefault();
     if (!currentMemberId || savingProfile) return;
 
+    if (!editAccountNumber.trim() && !editQrFile && !editQrPreview) {
+      alert("Please provide either your account number or upload a QR code image.");
+      return;
+    }
+
     setSavingProfile(true);
     try {
       let qrImageUrl = editQrPreview;
@@ -1045,7 +1050,7 @@ export default function TabPage() {
               </button>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              When someone owes you money, they will send payment to this account.
+              Provide your account number or upload a personal QR code so others can pay you easily.
             </p>
 
             <form onSubmit={handleSaveProfile} className="space-y-4">
@@ -1064,13 +1069,14 @@ export default function TabPage() {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Account / Mobile Number</label>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
+                  Account / Mobile Number <span className="text-slate-400 font-normal">(Optional if QR uploaded)</span>
+                </label>
                 <input
                   type="text"
                   placeholder="e.g. 09171234567"
                   value={editAccountNumber}
                   onChange={(e) => setEditAccountNumber(e.target.value)}
-                  required
                   className="w-full mt-1 bg-slate-100 dark:bg-white/[0.05] border border-black/10 dark:border-white/10 rounded-xl px-4 py-3 text-slate-900 dark:text-white font-mono text-sm focus:border-emerald-500 outline-none transition"
                 />
               </div>
@@ -1078,7 +1084,7 @@ export default function TabPage() {
               {/* QR Code Image Upload */}
               <div>
                 <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5 block">
-                  Upload QR Code Image (Optional)
+                  Or Upload QR Code Image
                 </label>
                 <div className="flex items-center gap-3">
                   {editQrPreview && (
@@ -1088,7 +1094,7 @@ export default function TabPage() {
                   )}
                   <label className="flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-slate-300 dark:border-white/20 bg-slate-50 dark:bg-white/[0.02] hover:bg-slate-100 dark:hover:bg-white/[0.05] cursor-pointer text-xs text-slate-600 dark:text-slate-300 transition">
                     <Upload size={15} />
-                    <span>{editQrFile ? editQrFile.name : "Choose QR Image..."}</span>
+                    <span>{editQrFile ? editQrFile.name : editQrPreview ? "Change QR Image..." : "Choose QR Image..."}</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -1102,6 +1108,19 @@ export default function TabPage() {
                       }}
                     />
                   </label>
+                  {editQrPreview && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditQrFile(null);
+                        setEditQrPreview(null);
+                      }}
+                      className="p-2 text-slate-400 hover:text-rose-500 transition"
+                      title="Remove QR image"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1162,30 +1181,32 @@ export default function TabPage() {
                     </button>
                   </div>
                 </div>
-              ) : (
+              ) : !hasCustomQr ? (
                 <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-600 dark:text-amber-300">
-                  {creditor?.name} has not added their GCash/Maya number yet.
+                  {creditor?.name} has not added their payment info yet.
                 </div>
-              )}
+              ) : null}
 
               {/* Display Custom Uploaded QR or Fallback to Generated QR */}
-              <div className="bg-white p-3 rounded-2xl w-fit mx-auto shadow-inner border border-black/5">
-                {hasCustomQr ? (
-                  <div className="relative w-40 h-40 rounded-xl overflow-hidden">
-                    <Image src={creditor.qr_image_url!} alt="Custom QR" fill className="object-contain" />
-                  </div>
-                ) : (
-                  <QRCodeSVG
-                    value={
-                      hasPaymentDetails && creditor
-                        ? `${creditor.payment_method?.toLowerCase()}://${creditor.account_number}?amount=${activeSettlement.amount}`
-                        : `evenly://pay?recipient=${encodeURIComponent(creditor?.name || "")}&amount=${activeSettlement.amount}`
-                    }
-                    size={140}
-                    level="M"
-                  />
-                )}
-              </div>
+              {(hasCustomQr || hasPaymentDetails) && (
+                <div className="bg-white p-3 rounded-2xl w-fit mx-auto shadow-inner border border-black/5">
+                  {hasCustomQr ? (
+                    <div className="relative w-40 h-40 rounded-xl overflow-hidden">
+                      <Image src={creditor!.qr_image_url!} alt="Custom QR" fill className="object-contain" />
+                    </div>
+                  ) : (
+                    <QRCodeSVG
+                      value={
+                        hasPaymentDetails && creditor
+                          ? `${creditor.payment_method?.toLowerCase()}://${creditor.account_number}?amount=${activeSettlement.amount}`
+                          : `evenly://pay?recipient=${encodeURIComponent(creditor?.name || "")}&amount=${activeSettlement.amount}`
+                      }
+                      size={140}
+                      level="M"
+                    />
+                  )}
+                </div>
+              )}
 
               <div className="space-y-2 pt-2">
                 <button
