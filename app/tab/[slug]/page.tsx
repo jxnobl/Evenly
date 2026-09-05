@@ -7,7 +7,7 @@ import {
   ArrowLeft, Plus, QrCode, Check, 
   Receipt, Wallet, Share2, X, Loader2,
   Copy, Edit3, Smartphone, CheckCircle2, Trash2, Pencil,
-  History, ChevronDown, ChevronUp, RotateCcw
+  History, ChevronDown, ChevronUp, RotateCcw, AlertCircle
 } from "lucide-react";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
@@ -66,7 +66,9 @@ export default function TabPage() {
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
   const [payerId, setPayerId] = useState("");
+  const [splitMode, setSplitMode] = useState<"equal" | "exact">("equal");
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [exactSplits, setExactSplits] = useState<Record<string, string>>({});
   const [submittingExpense, setSubmittingExpense] = useState(false);
 
   const fetchTabData = useCallback(async () => {
@@ -222,9 +224,15 @@ export default function TabPage() {
     setEditingExpenseId(null);
     setTitle("");
     setAmount("");
+    setSplitMode("equal");
     if (members.length > 0) {
       setPayerId(members[0].id);
       setSelectedMembers(members.map((m) => m.id));
+      const initialExact: Record<string, string> = {};
+      members.forEach((m) => {
+        initialExact[m.id] = "";
+      });
+      setExactSplits(initialExact);
     }
     setIsExpenseModalOpen(true);
   };
@@ -234,7 +242,25 @@ export default function TabPage() {
     setTitle(exp.title || "");
     setAmount(exp.amount.toString());
     setPayerId(exp.payerMemberId);
-    setSelectedMembers(exp.splits.map((s) => s.memberId));
+
+    const splitMembers = exp.splits.map((s) => s.memberId);
+    setSelectedMembers(splitMembers);
+
+    const isEven =
+      exp.splits.length > 0 &&
+      exp.splits.every(
+        (s) => Math.abs(s.amountOwed - exp.amount / exp.splits.length) < 0.05
+      );
+
+    setSplitMode(isEven ? "equal" : "exact");
+
+    const exactMap: Record<string, string> = {};
+    members.forEach((m) => {
+      const found = exp.splits.find((s) => s.memberId === m.id);
+      exactMap[m.id] = found ? found.amountOwed.toString() : "";
+    });
+    setExactSplits(exactMap);
+
     setIsExpenseModalOpen(true);
   };
 
@@ -263,15 +289,50 @@ export default function TabPage() {
     }
   };
 
+  const totalExactAllocated = Object.values(exactSplits).reduce(
+    (sum, val) => sum + (parseFloat(val) || 0),
+    0
+  );
+
   const handleSaveExpense = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!tab || !title.trim() || !amount || selectedMembers.length === 0 || submittingExpense) return;
+    const total = parseFloat(amount);
+    if (!tab || !title.trim() || isNaN(total) || total <= 0 || submittingExpense) return;
+
+    let splitsToInsert: { expense_id?: string; member_id: string; amount_owed: number }[] = [];
+
+    if (splitMode === "equal") {
+      if (selectedMembers.length === 0) {
+        alert("Select at least one member to split with.");
+        return;
+      }
+      const splitAmount = Math.round((total / selectedMembers.length) * 100) / 100;
+      splitsToInsert = selectedMembers.map((mId) => ({
+        member_id: mId,
+        amount_owed: splitAmount,
+      }));
+    } else {
+      if (Math.abs(totalExactAllocated - total) > 0.05) {
+        alert(
+          `The sum of custom shares (₱${totalExactAllocated.toFixed(2)}) must match the total expense (₱${total.toFixed(2)}).`
+        );
+        return;
+      }
+      splitsToInsert = Object.entries(exactSplits)
+        .map(([mId, val]) => ({
+          member_id: mId,
+          amount_owed: parseFloat(val) || 0,
+        }))
+        .filter((s) => s.amount_owed > 0);
+
+      if (splitsToInsert.length === 0) {
+        alert("Enter at least one valid amount owed.");
+        return;
+      }
+    }
 
     setSubmittingExpense(true);
     try {
-      const total = parseFloat(amount);
-      const splitAmount = Math.round((total / selectedMembers.length) * 100) / 100;
-
       if (editingExpenseId) {
         const { error: expUpdateErr } = await supabase
           .from("expenses")
@@ -286,13 +347,12 @@ export default function TabPage() {
 
         await supabase.from("expense_splits").delete().eq("expense_id", editingExpenseId);
 
-        const splitsToInsert = selectedMembers.map((mId) => ({
+        const mappedSplits = splitsToInsert.map((s) => ({
+          ...s,
           expense_id: editingExpenseId,
-          member_id: mId,
-          amount_owed: splitAmount,
         }));
 
-        const { error: splitErr } = await supabase.from("expense_splits").insert(splitsToInsert);
+        const { error: splitErr } = await supabase.from("expense_splits").insert(mappedSplits);
         if (splitErr) throw splitErr;
       } else {
         const { data: expData, error: expError } = await supabase
@@ -310,13 +370,12 @@ export default function TabPage() {
 
         if (expError) throw expError;
 
-        const splitsToInsert = selectedMembers.map((mId) => ({
+        const mappedSplits = splitsToInsert.map((s) => ({
+          ...s,
           expense_id: expData.id,
-          member_id: mId,
-          amount_owed: splitAmount,
         }));
 
-        const { error: splitError } = await supabase.from("expense_splits").insert(splitsToInsert);
+        const { error: splitError } = await supabase.from("expense_splits").insert(mappedSplits);
         if (splitError) throw splitError;
       }
 
@@ -770,7 +829,7 @@ export default function TabPage() {
                 <label className="text-xs font-semibold text-slate-400 uppercase">Expense Title</label>
                 <input
                   type="text"
-                  placeholder="e.g. Samgyup, Grab, Coffee"
+                  placeholder="e.g. Samgyup, Grab, Drinks"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   required
@@ -806,37 +865,114 @@ export default function TabPage() {
                 </select>
               </div>
 
+              {/* Split Mode Selector */}
               <div>
-                <label className="text-xs font-semibold text-slate-400 uppercase mb-2 block">Split Between</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {members.map((m) => {
-                    const isChecked = selectedMembers.includes(m.id);
-                    return (
-                      <button
-                        type="button"
-                        key={m.id}
-                        onClick={() => {
-                          if (isChecked) {
-                            if (selectedMembers.length > 1) {
-                              setSelectedMembers(selectedMembers.filter((id) => id !== m.id));
-                            }
-                          } else {
-                            setSelectedMembers([...selectedMembers, m.id]);
-                          }
-                        }}
-                        className={`px-3 py-2.5 rounded-xl border text-xs font-medium flex items-center justify-between ${
-                          isChecked
-                            ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-400"
-                            : "bg-white/[0.02] border-white/5 text-slate-400"
-                        }`}
-                      >
-                        {m.name}
-                        {isChecked && <Check size={14} />}
-                      </button>
-                    );
-                  })}
+                <label className="text-xs font-semibold text-slate-400 uppercase mb-2 block">Split Method</label>
+                <div className="grid grid-cols-2 gap-2 p-1 bg-white/[0.03] border border-white/10 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setSplitMode("equal")}
+                    className={`py-2 rounded-lg text-xs font-semibold transition ${
+                      splitMode === "equal"
+                        ? "bg-emerald-500 text-black shadow-sm"
+                        : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    Equally
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSplitMode("exact")}
+                    className={`py-2 rounded-lg text-xs font-semibold transition ${
+                      splitMode === "exact"
+                        ? "bg-emerald-500 text-black shadow-sm"
+                        : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    Exact Amounts
+                  </button>
                 </div>
               </div>
+
+              {/* Dynamic Split Input Area */}
+              {splitMode === "equal" ? (
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 uppercase mb-2 block">Split Between</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {members.map((m) => {
+                      const isChecked = selectedMembers.includes(m.id);
+                      return (
+                        <button
+                          type="button"
+                          key={m.id}
+                          onClick={() => {
+                            if (isChecked) {
+                              if (selectedMembers.length > 1) {
+                                setSelectedMembers(selectedMembers.filter((id) => id !== m.id));
+                              }
+                            } else {
+                              setSelectedMembers([...selectedMembers, m.id]);
+                            }
+                          }}
+                          className={`px-3 py-2.5 rounded-xl border text-xs font-medium flex items-center justify-between transition ${
+                            isChecked
+                              ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-400"
+                              : "bg-white/[0.02] border-white/5 text-slate-400"
+                          }`}
+                        >
+                          {m.name}
+                          {isChecked && <Check size={14} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-slate-400 uppercase">Custom Amounts</span>
+                    <span
+                      className={`font-mono font-medium ${
+                        Math.abs(totalExactAllocated - (parseFloat(amount) || 0)) < 0.01
+                          ? "text-emerald-400"
+                          : "text-rose-400"
+                      }`}
+                    >
+                      ₱{totalExactAllocated.toFixed(2)} / ₱{(parseFloat(amount) || 0).toFixed(2)}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {members.map((m) => (
+                      <div key={m.id} className="flex items-center justify-between gap-3 bg-white/[0.02] border border-white/5 p-2.5 rounded-xl">
+                        <span className="text-xs font-medium text-slate-300">{m.name}</span>
+                        <div className="flex items-center gap-1.5 w-32">
+                          <span className="text-xs text-slate-500">₱</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={exactSplits[m.id] ?? ""}
+                            onChange={(e) =>
+                              setExactSplits({
+                                ...exactSplits,
+                                [m.id]: e.target.value,
+                              })
+                            }
+                            className="w-full bg-white/[0.05] border border-white/10 rounded-lg px-2.5 py-1.5 text-right font-mono text-xs text-white outline-none focus:border-emerald-500"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {Math.abs(totalExactAllocated - (parseFloat(amount) || 0)) > 0.05 && (
+                    <p className="text-[11px] text-rose-400 flex items-center gap-1">
+                      <AlertCircle size={12} /> Sum does not match total expense.
+                    </p>
+                  )}
+                </div>
+              )}
 
               <button
                 type="submit"
