@@ -6,7 +6,8 @@ import { computeSettlements, Member, Expense, Settlement, PaymentRecord } from "
 import { 
   ArrowLeft, Plus, QrCode, Check, 
   Receipt, Wallet, Share2, X, Loader2,
-  Copy, Edit3, Smartphone, CheckCircle2, Trash2, Pencil
+  Copy, Edit3, Smartphone, CheckCircle2, Trash2, Pencil,
+  History, ChevronDown, ChevronUp, RotateCcw
 } from "lucide-react";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
@@ -29,6 +30,11 @@ interface DetailedExpense extends Expense {
   title?: string;
 }
 
+interface DetailedPayment extends PaymentRecord {
+  id?: string;
+  created_at?: string;
+}
+
 export default function TabPage() {
   const routeParams = useParams();
   const slug = Array.isArray(routeParams?.slug)
@@ -38,7 +44,7 @@ export default function TabPage() {
   const [tab, setTab] = useState<TabRecord | null>(null);
   const [members, setMembers] = useState<FullMember[]>([]);
   const [expenses, setExpenses] = useState<DetailedExpense[]>([]);
-  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [payments, setPayments] = useState<DetailedPayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -46,6 +52,7 @@ export default function TabPage() {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [showHistory, setShowHistory] = useState(true);
   const [activeSettlement, setActiveSettlement] = useState<Settlement | null>(null);
   const [copied, setCopied] = useState(false);
   const [settling, setSettling] = useState(false);
@@ -136,11 +143,20 @@ export default function TabPage() {
 
       const { data: payData, error: payErr } = await supabase
         .from("payments")
-        .select("payer_id, receiver_id, amount")
-        .eq("tab_id", tabData.id);
+        .select("id, payer_id, receiver_id, amount, created_at")
+        .eq("tab_id", tabData.id)
+        .order("created_at", { ascending: false });
 
       if (!payErr && payData) {
-        setPayments(payData);
+        setPayments(
+          payData.map((p) => ({
+            id: p.id,
+            payer_id: p.payer_id,
+            receiver_id: p.receiver_id,
+            amount: Number(p.amount),
+            created_at: p.created_at,
+          }))
+        );
       }
     } catch (err: any) {
       console.error("fetchTabData error:", err);
@@ -234,6 +250,19 @@ export default function TabPage() {
     }
   };
 
+  const handleDeletePayment = async (id?: string) => {
+    if (!id) return;
+    if (!confirm("Undo this payment? The balance will revert to owed.")) return;
+
+    try {
+      const { error } = await supabase.from("payments").delete().eq("id", id);
+      if (error) throw error;
+      await fetchTabData();
+    } catch (err: any) {
+      alert(err.message || "Failed to undo payment");
+    }
+  };
+
   const handleSaveExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tab || !title.trim() || !amount || selectedMembers.length === 0 || submittingExpense) return;
@@ -244,7 +273,6 @@ export default function TabPage() {
       const splitAmount = Math.round((total / selectedMembers.length) * 100) / 100;
 
       if (editingExpenseId) {
-        // Update existing expense
         const { error: expUpdateErr } = await supabase
           .from("expenses")
           .update({
@@ -256,7 +284,6 @@ export default function TabPage() {
 
         if (expUpdateErr) throw expUpdateErr;
 
-        // Re-create splits
         await supabase.from("expense_splits").delete().eq("expense_id", editingExpenseId);
 
         const splitsToInsert = selectedMembers.map((mId) => ({
@@ -268,7 +295,6 @@ export default function TabPage() {
         const { error: splitErr } = await supabase.from("expense_splits").insert(splitsToInsert);
         if (splitErr) throw splitErr;
       } else {
-        // Create new expense
         const { data: expData, error: expError } = await supabase
           .from("expenses")
           .insert([
@@ -509,6 +535,68 @@ export default function TabPage() {
             ))
           )}
         </section>
+
+        {/* Payment History Log */}
+        {payments.length > 0 && (
+          <section className="space-y-3">
+            <button
+              type="button"
+              onClick={() => setShowHistory(!showHistory)}
+              className="w-full flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white transition"
+            >
+              <span className="flex items-center gap-1.5">
+                <History size={14} className="text-emerald-400" /> Settled Payments ({payments.length})
+              </span>
+              {showHistory ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+
+            {showHistory && (
+              <div className="space-y-2">
+                {payments.map((p) => {
+                  const debtor = getMember(p.payer_id);
+                  const creditor = getMember(p.receiver_id);
+
+                  return (
+                    <div
+                      key={p.id}
+                      className="flex items-center justify-between p-3.5 rounded-xl bg-white/[0.015] border border-white/5 text-xs"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="text-slate-300">
+                          <span className="text-slate-400 font-medium">{debtor?.name}</span> paid{" "}
+                          <span className="text-emerald-400 font-medium">{creditor?.name}</span>
+                        </div>
+                        {p.created_at && (
+                          <p className="text-[10px] text-slate-500 font-mono">
+                            {new Date(p.created_at).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono font-semibold text-emerald-400">
+                          ₱{p.amount.toFixed(2)}
+                        </span>
+                        <button
+                          onClick={() => handleDeletePayment(p.id)}
+                          className="p-1 text-slate-600 hover:text-amber-400 transition"
+                          title="Undo payment"
+                        >
+                          <RotateCcw size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
       </div>
 
       {/* Floating CTA */}
