@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState, use } from "react";
-import { computeSettlements, Member, Expense, Settlement } from "@/lib/algorithm";
+import { computeSettlements, Member, Expense, Settlement, PaymentRecord } from "@/lib/algorithm";
 import { 
   ArrowLeft, Plus, QrCode, Check, 
   Receipt, Wallet, Share2, X, Loader2,
-  Copy, Edit3, Smartphone
+  Copy, Edit3, Smartphone, CheckCircle2
 } from "lucide-react";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
@@ -27,6 +27,7 @@ export default function TabPage({ params }: { params: Promise<{ slug: string }> 
   const [tab, setTab] = useState<TabRecord | null>(null);
   const [members, setMembers] = useState<FullMember[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [currentMemberId, setCurrentMemberId] = useState<string | null>(null);
@@ -34,6 +35,7 @@ export default function TabPage({ params }: { params: Promise<{ slug: string }> 
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [activeSettlement, setActiveSettlement] = useState<Settlement | null>(null);
   const [copied, setCopied] = useState(false);
+  const [settling, setSettling] = useState(false);
 
   // Profile setup state
   const [editPaymentMethod, setEditPaymentMethod] = useState("GCash");
@@ -97,6 +99,15 @@ export default function TabPage({ params }: { params: Promise<{ slug: string }> 
       }));
 
       setExpenses(formattedExpenses);
+
+      // Fetch confirmed payments
+      const { data: payData, error: payErr } = await supabase
+        .from("payments")
+        .select("payer_id, receiver_id, amount")
+        .eq("tab_id", tabData.id);
+
+      if (payErr) throw payErr;
+      setPayments(payData || []);
     } catch (err: any) {
       console.error(err);
     } finally {
@@ -119,6 +130,11 @@ export default function TabPage({ params }: { params: Promise<{ slug: string }> 
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "tab_members" },
+        () => fetchTabData()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "payments" },
         () => fetchTabData()
       )
       .subscribe();
@@ -210,6 +226,28 @@ export default function TabPage({ params }: { params: Promise<{ slug: string }> 
     }
   };
 
+  const handleConfirmSettlement = async (s: Settlement) => {
+    if (!tab || settling) return;
+    setSettling(true);
+    try {
+      const { error } = await supabase.from("payments").insert([
+        {
+          tab_id: tab.id,
+          payer_id: s.debtorId,
+          receiver_id: s.creditorId,
+          amount: s.amount,
+        },
+      ]);
+      if (error) throw error;
+      setActiveSettlement(null);
+      await fetchTabData();
+    } catch (err: any) {
+      alert(err.message || "Failed to settle payment");
+    } finally {
+      setSettling(false);
+    }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -237,7 +275,7 @@ export default function TabPage({ params }: { params: Promise<{ slug: string }> 
     );
   }
 
-  const settlements = computeSettlements(members, expenses);
+  const settlements = computeSettlements(members, expenses, payments);
   const getMember = (id: string) => members.find((m) => m.id === id);
 
   return (
@@ -308,7 +346,7 @@ export default function TabPage({ params }: { params: Promise<{ slug: string }> 
               <Wallet size={14} className="text-emerald-400" /> Suggested Settle Up
             </h2>
             <span className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md font-mono">
-              {settlements.length} transfers
+              {settlements.length} left
             </span>
           </div>
 
@@ -338,7 +376,7 @@ export default function TabPage({ params }: { params: Promise<{ slug: string }> 
                         }}
                         className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg text-xs font-semibold flex items-center gap-1"
                       >
-                        <QrCode size={13} /> Pay
+                        <QrCode size={13} /> Settle
                       </button>
                     </div>
                   </div>
@@ -438,31 +476,33 @@ export default function TabPage({ params }: { params: Promise<{ slug: string }> 
         </div>
       )}
 
-      {/* Settlement QR Modal */}
+      {/* Settlement Modal with 'Mark as Paid' */}
       {activeSettlement && (() => {
         const creditor = getMember(activeSettlement.creditorId);
+        const debtor = getMember(activeSettlement.debtorId);
         const hasPaymentDetails = Boolean(creditor?.account_number);
 
         return (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-5">
             <div className="w-full max-w-sm bg-[#121824] border border-white/10 rounded-3xl p-6 text-center space-y-4">
               <div className="flex justify-between items-center">
-                <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Pay Settlement</span>
+                <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Settlement Transfer</span>
                 <button onClick={() => setActiveSettlement(null)} className="text-slate-400 p-1">
                   <X size={20} />
                 </button>
               </div>
 
               <div>
-                <p className="text-xs text-slate-400">Send payment to</p>
-                <h4 className="text-lg font-bold text-white">{creditor?.name}</h4>
-                <p className="text-3xl font-black font-mono text-emerald-400 mt-1">
+                <p className="text-xs text-slate-400">
+                  <span className="text-rose-400 font-semibold">{debtor?.name}</span> pays <span className="text-emerald-400 font-semibold">{creditor?.name}</span>
+                </p>
+                <p className="text-3xl font-black font-mono text-white mt-1">
                   ₱{activeSettlement.amount.toFixed(2)}
                 </p>
               </div>
 
               {hasPaymentDetails ? (
-                <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2">
+                <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2 text-left">
                   <div className="flex items-center justify-between text-xs text-slate-400">
                     <span>{creditor?.payment_method || "E-Wallet"}</span>
                     <Smartphone size={14} className="text-emerald-400" />
@@ -481,8 +521,8 @@ export default function TabPage({ params }: { params: Promise<{ slug: string }> 
                   </div>
                 </div>
               ) : (
-                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300">
-                  {creditor?.name} hasn't set their GCash/Maya number yet. Ask them to tap their name pill and add it.
+                <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300">
+                  {creditor?.name} has not added their GCash/Maya number yet.
                 </div>
               )}
 
@@ -493,17 +533,30 @@ export default function TabPage({ params }: { params: Promise<{ slug: string }> 
                       ? `${creditor?.payment_method?.toLowerCase()}://${creditor?.account_number}?amount=${activeSettlement.amount}`
                       : `evenly://pay?recipient=${encodeURIComponent(creditor?.name || "")}&amount=${activeSettlement.amount}`
                   }
-                  size={150}
+                  size={140}
                   level="M"
                 />
               </div>
 
-              <div className="pt-2">
+              <div className="space-y-2 pt-2">
+                <button
+                  onClick={() => handleConfirmSettlement(activeSettlement)}
+                  disabled={settling}
+                  className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-1.5 transition disabled:opacity-50"
+                >
+                  {settling ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <>
+                      <CheckCircle2 size={16} /> Mark as Paid
+                    </>
+                  )}
+                </button>
                 <button
                   onClick={() => setActiveSettlement(null)}
-                  className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3 rounded-xl text-sm transition"
+                  className="w-full bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 font-semibold py-2.5 rounded-xl text-xs transition"
                 >
-                  Done
+                  Cancel
                 </button>
               </div>
             </div>

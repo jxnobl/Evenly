@@ -3,7 +3,7 @@ export interface Member {
   name: string;
 }
 
-export interface ExpenseSplit {
+export interface Split {
   memberId: string;
   amountOwed: number;
 }
@@ -12,7 +12,13 @@ export interface Expense {
   id: string;
   payerMemberId: string;
   amount: number;
-  splits: ExpenseSplit[];
+  splits: Split[];
+}
+
+export interface PaymentRecord {
+  payer_id: string;
+  receiver_id: string;
+  amount: number;
 }
 
 export interface Settlement {
@@ -21,57 +27,66 @@ export interface Settlement {
   amount: number;
 }
 
-export function computeSettlements(members: Member[], expenses: Expense[]): Settlement[] {
-  const netBalances: Record<string, number> = {};
+export function computeSettlements(
+  members: Member[],
+  expenses: Expense[],
+  payments: PaymentRecord[] = []
+): Settlement[] {
+  const balances: Record<string, number> = {};
 
   members.forEach((m) => {
-    netBalances[m.id] = 0;
+    balances[m.id] = 0;
   });
 
   expenses.forEach((expense) => {
-    netBalances[expense.payerMemberId] = (netBalances[expense.payerMemberId] || 0) + expense.amount;
+    balances[expense.payerMemberId] = (balances[expense.payerMemberId] || 0) + expense.amount;
     expense.splits.forEach((split) => {
-      netBalances[split.memberId] = (netBalances[split.memberId] || 0) - split.amountOwed;
+      balances[split.memberId] = (balances[split.memberId] || 0) - split.amountOwed;
     });
   });
 
-  const creditors: { id: string; amount: number }[] = [];
-  const debtors: { id: string; amount: number }[] = [];
+  payments.forEach((p) => {
+    balances[p.payer_id] = (balances[p.payer_id] || 0) + Number(p.amount);
+    balances[p.receiver_id] = (balances[p.receiver_id] || 0) - Number(p.amount);
+  });
 
-  Object.entries(netBalances).forEach(([id, balance]) => {
-    const rounded = Math.round(balance * 100) / 100;
-    if (rounded > 0.01) {
-      creditors.push({ id, amount: rounded });
-    } else if (rounded < -0.01) {
-      debtors.push({ id, amount: -rounded });
+  const debtors: { id: string; amount: number }[] = [];
+  const creditors: { id: string; amount: number }[] = [];
+
+  Object.entries(balances).forEach(([memberId, net]) => {
+    const rounded = Math.round(net * 100) / 100;
+    if (rounded < -0.01) {
+      debtors.push({ id: memberId, amount: -rounded });
+    } else if (rounded > 0.01) {
+      creditors.push({ id: memberId, amount: rounded });
     }
   });
 
-  creditors.sort((a, b) => b.amount - a.amount);
   debtors.sort((a, b) => b.amount - a.amount);
+  creditors.sort((a, b) => b.amount - a.amount);
 
   const settlements: Settlement[] = [];
-  let i = 0;
-  let j = 0;
+  let dIdx = 0;
+  let cIdx = 0;
 
-  while (i < debtors.length && j < creditors.length) {
-    const debtor = debtors[i];
-    const creditor = creditors[j];
-    const settledAmount = Math.min(debtor.amount, creditor.amount);
+  while (dIdx < debtors.length && cIdx < creditors.length) {
+    const debtor = debtors[dIdx];
+    const creditor = creditors[cIdx];
+    const transfer = Math.min(debtor.amount, creditor.amount);
 
-    if (settledAmount > 0.01) {
+    if (transfer > 0.01) {
       settlements.push({
         debtorId: debtor.id,
         creditorId: creditor.id,
-        amount: Math.round(settledAmount * 100) / 100,
+        amount: Math.round(transfer * 100) / 100,
       });
     }
 
-    debtor.amount = Math.round((debtor.amount - settledAmount) * 100) / 100;
-    creditor.amount = Math.round((creditor.amount - settledAmount) * 100) / 100;
+    debtor.amount -= transfer;
+    creditor.amount -= transfer;
 
-    if (debtor.amount <= 0.01) i++;
-    if (creditor.amount <= 0.01) j++;
+    if (debtor.amount < 0.01) dIdx++;
+    if (creditor.amount < 0.01) cIdx++;
   }
 
   return settlements;
