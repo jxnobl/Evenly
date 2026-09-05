@@ -8,11 +8,12 @@ import {
   Receipt, Wallet, Share2, X, Loader2,
   Copy, Edit3, Smartphone, CheckCircle2, Trash2, Pencil,
   History, ChevronDown, ChevronUp, RotateCcw, AlertCircle,
-  UserPlus
+  UserPlus, Users
 } from "lucide-react";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import { supabase } from "@/lib/supabase";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export const dynamic = "force-dynamic";
 
@@ -55,10 +56,11 @@ export default function TabPage() {
   const [inspectingExpense, setInspectingExpense] = useState<DetailedExpense | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   
-  // Add Member State
-  const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+  // Member Management State
+  const [isManageMembersModalOpen, setIsManageMembersModalOpen] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
   const [addingMember, setAddingMember] = useState(false);
+  const [deletingMemberId, setDeletingMemberId] = useState<string | null>(null);
 
   const [showHistory, setShowHistory] = useState(true);
   const [activeSettlement, setActiveSettlement] = useState<Settlement | null>(null);
@@ -251,12 +253,75 @@ export default function TabPage() {
       if (error) throw error;
 
       setNewMemberName("");
-      setIsAddMemberModalOpen(false);
       await fetchTabData();
     } catch (err: any) {
       alert(err.message || "Failed to add member");
     } finally {
       setAddingMember(false);
+    }
+  };
+
+  const settlements = computeSettlements(members, expenses, payments);
+
+  const getMemberNetBalance = (memberId: string): number => {
+    let owedToMember = 0;
+    let memberOwes = 0;
+
+    settlements.forEach((s) => {
+      if (s.creditorId === memberId) owedToMember += s.amount;
+      if (s.debtorId === memberId) memberOwes += s.amount;
+    });
+
+    return Math.round((owedToMember - memberOwes) * 100) / 100;
+  };
+
+  const handleDeleteMember = async (member: FullMember) => {
+    if (!tab) return;
+
+    if (members.length <= 2) {
+      alert("A tab must have at least 2 members.");
+      return;
+    }
+
+    const net = getMemberNetBalance(member.id);
+
+    if (Math.abs(net) > 0.01) {
+      if (net > 0) {
+        alert(`Cannot remove ${member.name}. They are still owed ₱${net.toFixed(2)}. Settle all payments first.`);
+      } else {
+        alert(`Cannot remove ${member.name}. They still owe ₱${Math.abs(net).toFixed(2)}. Settle all payments first.`);
+      }
+      return;
+    }
+
+    const isPayerInAny = expenses.some((e) => e.payerMemberId === member.id && e.amount > 0);
+    if (isPayerInAny) {
+      alert(`Cannot remove ${member.name}. They are recorded as the payer for existing expenses.`);
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to remove ${member.name}? Their balance is completely settled.`)) {
+      return;
+    }
+
+    setDeletingMemberId(member.id);
+    try {
+      await supabase.from("expense_splits").delete().eq("member_id", member.id);
+
+      const { error } = await supabase.from("tab_members").delete().eq("id", member.id);
+      if (error) throw error;
+
+      if (currentMemberId === member.id) {
+        setCurrentMemberId(null);
+        localStorage.removeItem(`user_${slug}`);
+      }
+
+      await fetchTabData();
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Failed to remove member");
+    } finally {
+      setDeletingMemberId(null);
     }
   };
 
@@ -460,8 +525,8 @@ export default function TabPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0B0F17] flex items-center justify-center text-slate-400 gap-2">
-        <Loader2 size={20} className="animate-spin text-emerald-400" />
+      <div className="min-h-screen flex items-center justify-center text-slate-500 dark:text-slate-400 gap-2">
+        <Loader2 size={20} className="animate-spin text-emerald-500" />
         <span className="animate-pulse">Loading Tab...</span>
       </div>
     );
@@ -469,9 +534,9 @@ export default function TabPage() {
 
   if (!tab) {
     return (
-      <div className="min-h-screen bg-[#0B0F17] flex flex-col items-center justify-center text-slate-400 gap-3 p-6 text-center animate-fade-in">
-        <p className="text-white font-semibold">Tab not found</p>
-        <p className="text-sm text-slate-500">
+      <div className="min-h-screen flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 gap-3 p-6 text-center animate-fade-in">
+        <p className="text-slate-900 dark:text-white font-semibold">Tab not found</p>
+        <p className="text-sm">
           {fetchError ? `Error: ${fetchError}` : `No tab found matching slug "${slug}".`}
         </p>
         <Link href="/" className="px-4 py-2 rounded-xl bg-emerald-500 text-black font-semibold text-sm active:scale-95 transition">
@@ -481,36 +546,44 @@ export default function TabPage() {
     );
   }
 
-  const settlements = computeSettlements(members, expenses, payments);
   const getMember = (id: string) => members.find((m) => m.id === id);
 
   return (
-    <main className="min-h-screen bg-[#0B0F17] text-slate-100 max-w-md mx-auto pb-28 relative">
-      <header className="sticky top-0 z-20 bg-[#0B0F17]/80 backdrop-blur-md px-5 py-4 border-b border-white/5 flex items-center justify-between transition-all">
+    <main className="min-h-screen max-w-md mx-auto pb-28 relative">
+      <header className="sticky top-0 z-20 bg-slate-50/80 dark:bg-[#0B0F17]/80 backdrop-blur-md px-5 py-4 border-b border-black/5 dark:border-white/5 flex items-center justify-between transition-colors">
         <div className="flex items-center gap-3">
-          <Link href="/" className="p-2 -ml-2 rounded-xl bg-white/[0.03] text-slate-400 hover:text-white active:scale-95 transition">
+          <Link href="/" className="p-2 -ml-2 rounded-xl bg-black/5 dark:bg-white/[0.03] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white active:scale-95 transition">
             <ArrowLeft size={18} />
           </Link>
           <div>
-            <h1 className="font-bold text-base text-white leading-tight">{tab.title}</h1>
-            <p className="text-xs text-slate-500">{members.length} members</p>
+            <h1 className="font-bold text-base text-slate-900 dark:text-white leading-tight">{tab.title}</h1>
+            <button 
+              onClick={() => setIsManageMembersModalOpen(true)}
+              className="text-xs text-slate-500 dark:text-slate-400 hover:text-emerald-500 flex items-center gap-1 transition"
+            >
+              <span>{members.length} members</span>
+              <span className="text-[10px] text-emerald-500 font-medium">· Manage</span>
+            </button>
           </div>
         </div>
-        <button 
-          onClick={() => {
-            navigator.clipboard.writeText(window.location.href);
-            alert("Invite link copied to clipboard!");
-          }}
-          className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 active:scale-95 transition"
-        >
-          <Share2 size={18} />
-        </button>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <button 
+            onClick={() => {
+              navigator.clipboard.writeText(window.location.href);
+              alert("Invite link copied to clipboard!");
+            }}
+            className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 active:scale-95 transition"
+          >
+            <Share2 size={18} />
+          </button>
+        </div>
       </header>
 
       {/* Identity Selector & Add Member Button */}
-      <section className="px-5 py-3 bg-white/[0.02] border-b border-white/5 flex items-center justify-between">
+      <section className="px-5 py-3 bg-black/[0.02] dark:bg-white/[0.02] border-b border-black/5 dark:border-white/5 flex items-center justify-between transition-colors">
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 flex-1 pr-2">
-          <span className="text-xs text-slate-500 shrink-0 font-medium">You:</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0 font-medium">You:</span>
           {members.map((m) => (
             <button
               key={m.id}
@@ -518,7 +591,7 @@ export default function TabPage() {
               className={`text-xs px-3 py-1 rounded-full whitespace-nowrap transition-all duration-200 active:scale-95 ${
                 currentMemberId === m.id
                   ? "bg-emerald-500 text-black font-semibold shadow-md shadow-emerald-500/20"
-                  : "bg-white/[0.04] text-slate-400 hover:bg-white/[0.08]"
+                  : "bg-black/5 dark:bg-white/[0.04] text-slate-600 dark:text-slate-400 hover:bg-black/10 dark:hover:bg-white/[0.08]"
               }`}
             >
               {m.name}
@@ -528,11 +601,11 @@ export default function TabPage() {
 
         <div className="flex items-center gap-1 shrink-0">
           <button
-            onClick={() => setIsAddMemberModalOpen(true)}
-            className="p-1.5 text-slate-400 hover:text-emerald-400 rounded-lg hover:bg-white/[0.04] active:scale-90 transition"
-            title="Add new member to this tab"
+            onClick={() => setIsManageMembersModalOpen(true)}
+            className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 rounded-lg hover:bg-black/5 dark:hover:bg-white/[0.04] active:scale-90 transition"
+            title="Manage tab members"
           >
-            <UserPlus size={16} />
+            <Users size={16} />
           </button>
 
           {currentMemberId && (
@@ -545,7 +618,7 @@ export default function TabPage() {
                 }
                 setIsProfileModalOpen(true);
               }}
-              className="p-1.5 text-slate-400 hover:text-emerald-400 rounded-lg hover:bg-white/[0.04] active:scale-90 transition"
+              className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 rounded-lg hover:bg-black/5 dark:hover:bg-white/[0.04] active:scale-90 transition"
               title="Edit payment info"
             >
               <Edit3 size={15} />
@@ -556,18 +629,18 @@ export default function TabPage() {
 
       <div className="p-5 space-y-6">
         {/* Settlements */}
-        <section className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 backdrop-blur-md shadow-lg animate-fade-in">
+        <section className="bg-white dark:bg-white/[0.03] border border-black/5 dark:border-white/10 rounded-2xl p-5 backdrop-blur-md shadow-sm dark:shadow-lg animate-fade-in transition-colors">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Wallet size={14} className="text-emerald-400" /> Suggested Settle Up
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+              <Wallet size={14} className="text-emerald-500 dark:text-emerald-400" /> Suggested Settle Up
             </h2>
-            <span className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md font-mono">
+            <span className="text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md font-mono">
               {settlements.length} left
             </span>
           </div>
 
           {settlements.length === 0 ? (
-            <div className="text-center py-6 text-sm text-slate-500 animate-fade-in">
+            <div className="text-center py-6 text-sm text-slate-500 dark:text-slate-400 animate-fade-in">
               🎉 Everyone is fully settled up!
             </div>
           ) : (
@@ -577,20 +650,20 @@ export default function TabPage() {
                 const debtor = getMember(s.debtorId);
 
                 return (
-                  <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5 hover:border-emerald-500/20 transition duration-200">
+                  <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-white/[0.02] border border-black/5 dark:border-white/5 hover:border-emerald-500/30 transition duration-200">
                     <div className="text-sm">
-                      <span className="font-semibold text-rose-400">{debtor?.name}</span>
-                      <span className="text-slate-500 mx-1.5">&rarr;</span>
-                      <span className="font-semibold text-emerald-400">{creditor?.name}</span>
+                      <span className="font-semibold text-rose-500 dark:text-rose-400">{debtor?.name}</span>
+                      <span className="text-slate-400 dark:text-slate-500 mx-1.5">&rarr;</span>
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">{creditor?.name}</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="font-mono font-bold text-white text-sm">₱{s.amount.toFixed(2)}</span>
+                      <span className="font-mono font-bold text-slate-900 dark:text-white text-sm">₱{s.amount.toFixed(2)}</span>
                       <button
                         onClick={() => {
                           setActiveSettlement(s);
                           setCopied(false);
                         }}
-                        className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg text-xs font-semibold flex items-center gap-1 active:scale-95 transition"
+                        className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-lg text-xs font-semibold flex items-center gap-1 active:scale-95 transition"
                       >
                         <QrCode size={13} /> Settle
                       </button>
@@ -604,11 +677,11 @@ export default function TabPage() {
 
         {/* Expenses List */}
         <section className="space-y-3">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-            <Receipt size={14} className="text-emerald-400" /> Logged Expenses
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+            <Receipt size={14} className="text-emerald-500 dark:text-emerald-400" /> Logged Expenses
           </h2>
           {expenses.length === 0 ? (
-            <div className="text-center py-8 text-sm text-slate-600 animate-fade-in">
+            <div className="text-center py-8 text-sm text-slate-400 dark:text-slate-500 animate-fade-in">
               No expenses recorded yet. Tap below to add one.
             </div>
           ) : (
@@ -616,28 +689,28 @@ export default function TabPage() {
               <div 
                 key={exp.id} 
                 onClick={() => setInspectingExpense(exp)}
-                className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2 cursor-pointer hover:border-white/10 hover:bg-white/[0.035] active:scale-[0.99] transition duration-200"
+                className="p-4 rounded-xl bg-white dark:bg-white/[0.02] border border-black/5 dark:border-white/5 space-y-2 cursor-pointer hover:border-black/10 dark:hover:border-white/10 active:scale-[0.99] transition duration-200 shadow-sm"
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-semibold text-white">{exp.title || "Expense"}</p>
-                    <p className="text-xs text-slate-400">
-                      <span className="text-emerald-400 font-medium">{getMember(exp.payerMemberId)?.name}</span> paid · {exp.splits.length} split
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{exp.title || "Expense"}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">{getMember(exp.payerMemberId)?.name}</span> paid · {exp.splits.length} split
                     </p>
                   </div>
                   <div className="text-right flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-                    <p className="font-mono font-bold text-emerald-400">₱{exp.amount.toFixed(2)}</p>
+                    <p className="font-mono font-bold text-emerald-600 dark:text-emerald-400">₱{exp.amount.toFixed(2)}</p>
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => openEditExpenseModal(exp)}
-                        className="p-1.5 text-slate-500 hover:text-white rounded-lg active:scale-90 transition"
+                        className="p-1.5 text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-lg active:scale-90 transition"
                         title="Edit expense"
                       >
                         <Pencil size={14} />
                       </button>
                       <button
                         onClick={() => handleDeleteExpense(exp.id)}
-                        className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg active:scale-90 transition"
+                        className="p-1.5 text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 rounded-lg active:scale-90 transition"
                         title="Delete expense"
                       >
                         <Trash2 size={14} />
@@ -656,10 +729,10 @@ export default function TabPage() {
             <button
               type="button"
               onClick={() => setShowHistory(!showHistory)}
-              className="w-full flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white transition"
+              className="w-full flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition"
             >
               <span className="flex items-center gap-1.5">
-                <History size={14} className="text-emerald-400" /> Settled Payments ({payments.length})
+                <History size={14} className="text-emerald-500 dark:text-emerald-400" /> Settled Payments ({payments.length})
               </span>
               {showHistory ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
@@ -673,15 +746,15 @@ export default function TabPage() {
                   return (
                     <div
                       key={p.id}
-                      className="flex items-center justify-between p-3.5 rounded-xl bg-white/[0.015] border border-white/5 text-xs hover:border-white/10 transition"
+                      className="flex items-center justify-between p-3.5 rounded-xl bg-white dark:bg-white/[0.015] border border-black/5 dark:border-white/5 text-xs hover:border-black/10 dark:hover:border-white/10 transition"
                     >
                       <div className="space-y-0.5">
-                        <div className="text-slate-300">
-                          <span className="text-slate-400 font-medium">{debtor?.name}</span> paid{" "}
-                          <span className="text-emerald-400 font-medium">{creditor?.name}</span>
+                        <div className="text-slate-700 dark:text-slate-300">
+                          <span className="text-slate-500 dark:text-slate-400 font-medium">{debtor?.name}</span> paid{" "}
+                          <span className="text-emerald-600 dark:text-emerald-400 font-medium">{creditor?.name}</span>
                         </div>
                         {p.created_at && (
-                          <p className="text-[10px] text-slate-500 font-mono">
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
                             {new Date(p.created_at).toLocaleDateString("en-US", {
                               month: "short",
                               day: "numeric",
@@ -693,12 +766,12 @@ export default function TabPage() {
                       </div>
 
                       <div className="flex items-center gap-3">
-                        <span className="font-mono font-semibold text-emerald-400">
+                        <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">
                           ₱{p.amount.toFixed(2)}
                         </span>
                         <button
                           onClick={() => handleDeletePayment(p.id)}
-                          className="p-1 text-slate-600 hover:text-amber-400 active:scale-90 transition"
+                          className="p-1 text-slate-400 hover:text-amber-500 active:scale-90 transition"
                           title="Undo payment"
                         >
                           <RotateCcw size={13} />
@@ -714,7 +787,7 @@ export default function TabPage() {
       </div>
 
       {/* Floating CTA */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#0B0F17] via-[#0B0F17]/90 to-transparent z-10 pointer-events-none">
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-slate-50 via-slate-50/90 dark:from-[#0B0F17] dark:via-[#0B0F17]/90 to-transparent z-10 pointer-events-none transition-colors">
         <div className="max-w-md mx-auto pointer-events-auto">
           <button
             onClick={openNewExpenseModal}
@@ -725,98 +798,139 @@ export default function TabPage() {
         </div>
       </div>
 
-      {/* Add Member Modal */}
-      {isAddMemberModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
-          <div className="w-full max-w-sm bg-[#121824] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-4 animate-sheet-up">
+      {/* Manage Members Modal */}
+      {isManageMembersModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 dark:bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-[#121824] border-t sm:border border-black/10 dark:border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-5 animate-sheet-up shadow-2xl">
             <div className="flex justify-between items-center">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <UserPlus size={18} className="text-emerald-400" /> Add Person to Tab
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Users size={18} className="text-emerald-500 dark:text-emerald-400" /> Manage Group Members
               </h3>
-              <button onClick={() => setIsAddMemberModalOpen(false)} className="text-slate-400 hover:text-white p-1 active:scale-90 transition">
+              <button onClick={() => setIsManageMembersModalOpen(false)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white p-1 active:scale-90 transition">
                 <X size={20} />
               </button>
             </div>
-            <p className="text-xs text-slate-400">
-              New members will immediately be able to join expenses and settle balances.
-            </p>
 
-            <form onSubmit={handleAddMember} className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-slate-400 uppercase">Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Alex, Sarah"
-                  value={newMemberName}
-                  onChange={(e) => setNewMemberName(e.target.value)}
-                  required
-                  autoFocus
-                  disabled={addingMember}
-                  className="w-full mt-1 bg-white/[0.05] border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-emerald-500 outline-none transition"
-                />
-              </div>
-
+            {/* Quick Add Input */}
+            <form onSubmit={handleAddMember} className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Add member name..."
+                value={newMemberName}
+                onChange={(e) => setNewMemberName(e.target.value)}
+                required
+                disabled={addingMember}
+                className="flex-1 bg-slate-100 dark:bg-white/[0.05] border border-black/10 dark:border-white/10 rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white text-xs focus:border-emerald-500 outline-none transition"
+              />
               <button
                 type="submit"
                 disabled={addingMember}
-                className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3.5 rounded-xl text-sm transition flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-black font-bold rounded-xl text-xs flex items-center gap-1.5 active:scale-95 transition disabled:opacity-50"
               >
-                {addingMember ? <Loader2 size={16} className="animate-spin" /> : "Add to Group"}
+                {addingMember ? <Loader2 size={14} className="animate-spin" /> : <><UserPlus size={14} /> Add</>}
               </button>
             </form>
+
+            {/* Current Members List */}
+            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+              {members.map((m) => {
+                const net = getMemberNetBalance(m.id);
+                const isDeleting = deletingMemberId === m.id;
+
+                return (
+                  <div
+                    key={m.id}
+                    className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-white/[0.02] border border-black/5 dark:border-white/5 text-xs"
+                  >
+                    <div className="space-y-0.5">
+                      <p className="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        {m.name}
+                        {currentMemberId === m.id && (
+                          <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.2 rounded font-mono">
+                            You
+                          </span>
+                        )}
+                      </p>
+                      <p className="font-mono text-[11px]">
+                        {net > 0 ? (
+                          <span className="text-emerald-600 dark:text-emerald-400 font-medium">Is owed ₱{net.toFixed(2)}</span>
+                        ) : net < 0 ? (
+                          <span className="text-rose-500 dark:text-rose-400 font-medium">Owes ₱{Math.abs(net).toFixed(2)}</span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-500">Balance: ₱0.00 (Settled)</span>
+                        )}
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => handleDeleteMember(m)}
+                      disabled={isDeleting}
+                      className="p-2 text-slate-400 hover:text-rose-500 rounded-lg active:scale-90 transition disabled:opacity-40"
+                      title={Math.abs(net) > 0.01 ? "Cannot delete while balance is unsettled" : "Remove member"}
+                    >
+                      {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={15} />}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-relaxed">
+              * Members can only be removed when their net balance is completely settled (₱0.00) and tabs must keep at least 2 members.
+            </p>
           </div>
         </div>
       )}
 
       {/* Expense Detail Modal */}
       {inspectingExpense && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
-          <div className="w-full max-w-md bg-[#121824] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-5 animate-sheet-up">
+        <div className="fixed inset-0 z-50 bg-black/50 dark:bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-[#121824] border-t sm:border border-black/10 dark:border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-5 animate-sheet-up shadow-2xl">
             <div className="flex justify-between items-start">
               <div>
-                <h3 className="text-lg font-bold text-white leading-tight">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">
                   {inspectingExpense.title || "Expense Breakdown"}
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Paid by <span className="text-emerald-400 font-semibold">{getMember(inspectingExpense.payerMemberId)?.name}</span>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Paid by <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{getMember(inspectingExpense.payerMemberId)?.name}</span>
                 </p>
               </div>
               <button 
                 onClick={() => setInspectingExpense(null)} 
-                className="text-slate-400 hover:text-white p-1 active:scale-90 transition"
+                className="text-slate-400 hover:text-slate-900 dark:hover:text-white p-1 active:scale-90 transition"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
-              <span className="text-xs text-slate-400 font-medium">Total Amount</span>
-              <span className="text-xl font-bold font-mono text-emerald-400">
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-black/5 dark:border-white/5 flex items-center justify-between">
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Amount</span>
+              <span className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
                 ₱{inspectingExpense.amount.toFixed(2)}
               </span>
             </div>
 
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2.5">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2.5">
                 Who Split & How Much
               </p>
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {inspectingExpense.splits.map((s) => (
                   <div 
                     key={s.memberId} 
-                    className="flex items-center justify-between p-3 rounded-xl bg-white/[0.015] border border-white/5"
+                    className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-white/[0.015] border border-black/5 dark:border-white/5"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-slate-200">
+                      <span className="text-sm font-medium text-slate-800 dark:text-slate-200">
                         {getMember(s.memberId)?.name}
                       </span>
                       {s.memberId === inspectingExpense.payerMemberId && (
-                        <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded font-mono">
+                        <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded font-mono">
                           Payer
                         </span>
                       )}
                     </div>
-                    <span className="font-mono text-sm font-semibold text-slate-300">
+                    <span className="font-mono text-sm font-semibold text-slate-700 dark:text-slate-300">
                       ₱{s.amountOwed.toFixed(2)}
                     </span>
                   </div>
@@ -831,7 +945,7 @@ export default function TabPage() {
                   setInspectingExpense(null);
                   openEditExpenseModal(exp);
                 }}
-                className="flex-1 py-3 bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 active:scale-95 transition"
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.04] dark:hover:bg-white/[0.08] text-slate-700 dark:text-slate-300 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 active:scale-95 transition"
               >
                 <Pencil size={14} /> Edit Expense
               </button>
@@ -839,7 +953,7 @@ export default function TabPage() {
                 onClick={() => {
                   handleDeleteExpense(inspectingExpense.id);
                 }}
-                className="p-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl active:scale-90 transition"
+                className="p-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 dark:text-rose-400 rounded-xl active:scale-90 transition"
                 title="Delete"
               >
                 <Trash2 size={16} />
@@ -851,25 +965,25 @@ export default function TabPage() {
 
       {/* Payment Profile Modal */}
       {isProfileModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
-          <div className="w-full max-w-md bg-[#121824] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-4 animate-sheet-up">
+        <div className="fixed inset-0 z-50 bg-black/50 dark:bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-[#121824] border-t sm:border border-black/10 dark:border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-4 animate-sheet-up shadow-2xl">
             <div className="flex justify-between items-center">
-              <h3 className="text-base font-bold text-white">Your Settlement Info</h3>
-              <button onClick={() => setIsProfileModalOpen(false)} className="text-slate-400 hover:text-white p-1 active:scale-90 transition">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Your Settlement Info</h3>
+              <button onClick={() => setIsProfileModalOpen(false)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white p-1 active:scale-90 transition">
                 <X size={20} />
               </button>
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               When someone owes you money, they will send payment to this account.
             </p>
 
             <form onSubmit={handleSaveProfile} className="space-y-4">
               <div>
-                <label className="text-xs font-semibold text-slate-400 uppercase">Payment Method</label>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Payment Method</label>
                 <select
                   value={editPaymentMethod}
                   onChange={(e) => setEditPaymentMethod(e.target.value)}
-                  className="w-full mt-1 bg-[#1A2234] border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-emerald-500 outline-none"
+                  className="w-full mt-1 bg-slate-100 dark:bg-[#1A2234] border border-black/10 dark:border-white/10 rounded-xl px-4 py-3 text-slate-900 dark:text-white text-sm focus:border-emerald-500 outline-none transition"
                 >
                   <option value="GCash">GCash</option>
                   <option value="Maya">Maya</option>
@@ -879,14 +993,14 @@ export default function TabPage() {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-400 uppercase">Account / Mobile Number</label>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Account / Mobile Number</label>
                 <input
                   type="text"
                   placeholder="e.g. 09171234567"
                   value={editAccountNumber}
                   onChange={(e) => setEditAccountNumber(e.target.value)}
                   required
-                  className="w-full mt-1 bg-white/[0.05] border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-sm focus:border-emerald-500 outline-none transition"
+                  className="w-full mt-1 bg-slate-100 dark:bg-white/[0.05] border border-black/10 dark:border-white/10 rounded-xl px-4 py-3 text-slate-900 dark:text-white font-mono text-sm focus:border-emerald-500 outline-none transition"
                 />
               </div>
 
@@ -909,37 +1023,37 @@ export default function TabPage() {
         const hasPaymentDetails = Boolean(creditor?.account_number);
 
         return (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-5 animate-fade-in">
-            <div className="w-full max-w-sm bg-[#121824] border border-white/10 rounded-3xl p-6 text-center space-y-4 animate-sheet-up">
+          <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-5 animate-fade-in">
+            <div className="w-full max-w-sm bg-white dark:bg-[#121824] border border-black/10 dark:border-white/10 rounded-3xl p-6 text-center space-y-4 animate-sheet-up shadow-2xl">
               <div className="flex justify-between items-center">
-                <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Settlement Transfer</span>
-                <button onClick={() => setActiveSettlement(null)} className="text-slate-400 hover:text-white p-1 active:scale-90 transition">
+                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Settlement Transfer</span>
+                <button onClick={() => setActiveSettlement(null)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white p-1 active:scale-90 transition">
                   <X size={20} />
                 </button>
               </div>
 
               <div>
-                <p className="text-xs text-slate-400">
-                  <span className="text-rose-400 font-semibold">{debtor?.name}</span> pays <span className="text-emerald-400 font-semibold">{creditor?.name}</span>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  <span className="text-rose-500 dark:text-rose-400 font-semibold">{debtor?.name}</span> pays <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{creditor?.name}</span>
                 </p>
-                <p className="text-3xl font-black font-mono text-white mt-1">
+                <p className="text-3xl font-black font-mono text-slate-900 dark:text-white mt-1">
                   ₱{activeSettlement.amount.toFixed(2)}
                 </p>
               </div>
 
               {hasPaymentDetails ? (
-                <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2 text-left">
-                  <div className="flex items-center justify-between text-xs text-slate-400">
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-black/5 dark:border-white/10 space-y-2 text-left">
+                  <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                     <span>{creditor?.payment_method || "E-Wallet"}</span>
-                    <Smartphone size={14} className="text-emerald-400" />
+                    <Smartphone size={14} className="text-emerald-500 dark:text-emerald-400" />
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="font-mono text-white font-semibold text-base">
+                    <span className="font-mono text-slate-900 dark:text-white font-semibold text-base">
                       {creditor?.account_number}
                     </span>
                     <button
                       onClick={() => copyToClipboard(creditor?.account_number || "")}
-                      className="text-xs text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg hover:bg-emerald-500/20 flex items-center gap-1 active:scale-95 transition"
+                      className="text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg hover:bg-emerald-500/20 flex items-center gap-1 active:scale-95 transition"
                     >
                       {copied ? <Check size={12} /> : <Copy size={12} />}
                       {copied ? "Copied" : "Copy"}
@@ -947,12 +1061,12 @@ export default function TabPage() {
                   </div>
                 </div>
               ) : (
-                <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300">
+                <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-600 dark:text-amber-300">
                   {creditor?.name} has not added their GCash/Maya number yet.
                 </div>
               )}
 
-              <div className="bg-white p-3 rounded-2xl w-fit mx-auto shadow-inner">
+              <div className="bg-white p-3 rounded-2xl w-fit mx-auto shadow-inner border border-black/5">
                 <QRCodeSVG
                   value={
                     hasPaymentDetails
@@ -980,7 +1094,7 @@ export default function TabPage() {
                 </button>
                 <button
                   onClick={() => setActiveSettlement(null)}
-                  className="w-full bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 font-semibold py-2.5 rounded-xl text-xs active:scale-95 transition"
+                  className="w-full bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.04] dark:hover:bg-white/[0.08] text-slate-600 dark:text-slate-400 font-semibold py-2.5 rounded-xl text-xs active:scale-95 transition"
                 >
                   Cancel
                 </button>
@@ -992,20 +1106,20 @@ export default function TabPage() {
 
       {/* Add/Edit Expense Modal */}
       {isExpenseModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
-          <div className="w-full max-w-md bg-[#121824] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto animate-sheet-up">
+        <div className="fixed inset-0 z-50 bg-black/50 dark:bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-[#121824] border-t sm:border border-black/10 dark:border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto animate-sheet-up shadow-2xl">
             <div className="flex justify-between items-center">
-              <h3 className="text-base font-bold text-white">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
                 {editingExpenseId ? "Edit Expense" : "Log an Expense"}
               </h3>
-              <button onClick={() => setIsExpenseModalOpen(false)} className="text-slate-400 hover:text-white p-1 active:scale-90 transition">
+              <button onClick={() => setIsExpenseModalOpen(false)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white p-1 active:scale-90 transition">
                 <X size={20} />
               </button>
             </div>
 
             <form onSubmit={handleSaveExpense} className="space-y-4">
               <div>
-                <label className="text-xs font-semibold text-slate-400 uppercase">Expense Title</label>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Expense Title</label>
                 <input
                   type="text"
                   placeholder="e.g. Samgyup, Grab, Drinks"
@@ -1013,12 +1127,12 @@ export default function TabPage() {
                   onChange={(e) => setTitle(e.target.value)}
                   required
                   disabled={submittingExpense}
-                  className="w-full mt-1 bg-white/[0.05] border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-emerald-500 outline-none transition"
+                  className="w-full mt-1 bg-slate-100 dark:bg-white/[0.05] border border-black/10 dark:border-white/10 rounded-xl px-4 py-3 text-slate-900 dark:text-white text-sm focus:border-emerald-500 outline-none transition"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-400 uppercase">Total Amount (₱)</label>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Total Amount (₱)</label>
                 <input
                   type="number"
                   step="0.01"
@@ -1027,16 +1141,16 @@ export default function TabPage() {
                   onChange={(e) => setAmount(e.target.value)}
                   required
                   disabled={submittingExpense}
-                  className="w-full mt-1 bg-white/[0.05] border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-base focus:border-emerald-500 outline-none transition"
+                  className="w-full mt-1 bg-slate-100 dark:bg-white/[0.05] border border-black/10 dark:border-white/10 rounded-xl px-4 py-3 text-slate-900 dark:text-white font-mono text-base focus:border-emerald-500 outline-none transition"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-400 uppercase">Who Paid?</label>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Who Paid?</label>
                 <select
                   value={payerId}
                   onChange={(e) => setPayerId(e.target.value)}
-                  className="w-full mt-1 bg-[#1A2234] border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-emerald-500 outline-none"
+                  className="w-full mt-1 bg-slate-100 dark:bg-[#1A2234] border border-black/10 dark:border-white/10 rounded-xl px-4 py-3 text-slate-900 dark:text-white text-sm focus:border-emerald-500 outline-none transition"
                 >
                   {members.map((m) => (
                     <option key={m.id} value={m.id}>{m.name}</option>
@@ -1046,15 +1160,15 @@ export default function TabPage() {
 
               {/* Split Mode Selector */}
               <div>
-                <label className="text-xs font-semibold text-slate-400 uppercase mb-2 block">Split Method</label>
-                <div className="grid grid-cols-2 gap-2 p-1 bg-white/[0.03] border border-white/10 rounded-xl">
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-2 block">Split Method</label>
+                <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-white/[0.03] border border-black/5 dark:border-white/10 rounded-xl">
                   <button
                     type="button"
                     onClick={() => setSplitMode("equal")}
                     className={`py-2 rounded-lg text-xs font-semibold transition active:scale-95 ${
                       splitMode === "equal"
                         ? "bg-emerald-500 text-black shadow-sm"
-                        : "text-slate-400 hover:text-white"
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                     }`}
                   >
                     Equally
@@ -1065,7 +1179,7 @@ export default function TabPage() {
                     className={`py-2 rounded-lg text-xs font-semibold transition active:scale-95 ${
                       splitMode === "exact"
                         ? "bg-emerald-500 text-black shadow-sm"
-                        : "text-slate-400 hover:text-white"
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                     }`}
                   >
                     Exact Amounts
@@ -1076,7 +1190,7 @@ export default function TabPage() {
               {/* Dynamic Split Input Area */}
               {splitMode === "equal" ? (
                 <div>
-                  <label className="text-xs font-semibold text-slate-400 uppercase mb-2 block">Split Between</label>
+                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-2 block">Split Between</label>
                   <div className="grid grid-cols-2 gap-2">
                     {members.map((m) => {
                       const isChecked = selectedMembers.includes(m.id);
@@ -1095,8 +1209,8 @@ export default function TabPage() {
                           }}
                           className={`px-3 py-2.5 rounded-xl border text-xs font-medium flex items-center justify-between active:scale-95 transition ${
                             isChecked
-                              ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-400"
-                              : "bg-white/[0.02] border-white/5 text-slate-400"
+                              ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+                              : "bg-slate-100 dark:bg-white/[0.02] border-black/5 dark:border-white/5 text-slate-600 dark:text-slate-400"
                           }`}
                         >
                           {m.name}
@@ -1109,12 +1223,12 @@ export default function TabPage() {
               ) : (
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-slate-400 uppercase">Custom Amounts</span>
+                    <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase">Custom Amounts</span>
                     <span
                       className={`font-mono font-medium ${
                         Math.abs(totalExactAllocated - (parseFloat(amount) || 0)) < 0.01
-                          ? "text-emerald-400"
-                          : "text-rose-400"
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : "text-rose-500 dark:text-rose-400"
                       }`}
                     >
                       ₱{totalExactAllocated.toFixed(2)} / ₱{(parseFloat(amount) || 0).toFixed(2)}
@@ -1123,10 +1237,10 @@ export default function TabPage() {
 
                   <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                     {members.map((m) => (
-                      <div key={m.id} className="flex items-center justify-between gap-3 bg-white/[0.02] border border-white/5 p-2.5 rounded-xl">
-                        <span className="text-xs font-medium text-slate-300">{m.name}</span>
+                      <div key={m.id} className="flex items-center justify-between gap-3 bg-slate-50 dark:bg-white/[0.02] border border-black/5 dark:border-white/5 p-2.5 rounded-xl">
+                        <span className="text-xs font-medium text-slate-800 dark:text-slate-300">{m.name}</span>
                         <div className="flex items-center gap-1.5 w-32">
-                          <span className="text-xs text-slate-500">₱</span>
+                          <span className="text-xs text-slate-400">₱</span>
                           <input
                             type="number"
                             step="0.01"
@@ -1138,7 +1252,7 @@ export default function TabPage() {
                                 [m.id]: e.target.value,
                               })
                             }
-                            className="w-full bg-white/[0.05] border border-white/10 rounded-lg px-2.5 py-1.5 text-right font-mono text-xs text-white outline-none focus:border-emerald-500 transition"
+                            className="w-full bg-white dark:bg-white/[0.05] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1.5 text-right font-mono text-xs text-slate-900 dark:text-white outline-none focus:border-emerald-500 transition"
                           />
                         </div>
                       </div>
@@ -1146,7 +1260,7 @@ export default function TabPage() {
                   </div>
 
                   {Math.abs(totalExactAllocated - (parseFloat(amount) || 0)) > 0.05 && (
-                    <p className="text-[11px] text-rose-400 flex items-center gap-1 animate-fade-in">
+                    <p className="text-[11px] text-rose-500 dark:text-rose-400 flex items-center gap-1 animate-fade-in">
                       <AlertCircle size={12} /> Sum does not match total expense.
                     </p>
                   )}
