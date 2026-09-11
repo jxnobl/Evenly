@@ -15,6 +15,7 @@ import Image from "next/image";
 import { QRCodeSVG } from "qrcode.react";
 import { supabase } from "@/lib/supabase";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { compressQrImage, deleteQrFromStorage } from "@/lib/storage-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -238,22 +239,35 @@ export default function TabPage() {
       let qrImageUrl = editQrPreview;
 
       if (editQrFile) {
-        const fileExt = editQrFile.name.split(".").pop();
+        const currentMember = getMember(currentMemberId);
+        if (currentMember?.qr_image_url) {
+          await deleteQrFromStorage(currentMember.qr_image_url);
+        }
+
+        const compressedBlob = await compressQrImage(editQrFile);
         const randomStr = Math.random().toString(36).substring(2);
-        const fileName = `${currentMemberId}-${randomStr}.${fileExt}`;
-        const filePath = `${fileName}`;
+        const fileName = `${currentMemberId}-${randomStr}.webp`;
 
         const { error: uploadError } = await supabase.storage
           .from("qr-codes")
-          .upload(filePath, editQrFile);
+          .upload(fileName, compressedBlob, {
+            contentType: "image/webp",
+            upsert: true,
+          });
 
         if (uploadError) throw uploadError;
 
         const { data: publicUrlData } = supabase.storage
           .from("qr-codes")
-          .getPublicUrl(filePath);
+          .getPublicUrl(fileName);
 
         qrImageUrl = publicUrlData.publicUrl;
+      } else if (!editQrPreview) {
+        const currentMember = getMember(currentMemberId);
+        if (currentMember?.qr_image_url) {
+          await deleteQrFromStorage(currentMember.qr_image_url);
+        }
+        qrImageUrl = null;
       }
 
       const { error } = await supabase
@@ -342,6 +356,10 @@ export default function TabPage() {
 
     setDeletingMemberId(member.id);
     try {
+      if (member.qr_image_url) {
+        await deleteQrFromStorage(member.qr_image_url);
+      }
+
       await supabase.from("expense_splits").delete().eq("member_id", member.id);
 
       const { error } = await supabase.from("tab_members").delete().eq("id", member.id);
@@ -371,6 +389,12 @@ export default function TabPage() {
 
     setIsDeletingTab(true);
     try {
+      const qrUrlsToDelete = members
+        .map((m) => m.qr_image_url)
+        .filter(Boolean) as string[];
+
+      await Promise.all(qrUrlsToDelete.map((url) => deleteQrFromStorage(url)));
+
       const { error } = await supabase.from("tabs").delete().eq("id", tab.id);
       if (error) throw error;
 
@@ -667,7 +691,7 @@ export default function TabPage() {
         </div>
       </header>
 
-      {/* Identity Selector & Add Member Button */}
+      {/* Identity Selector */}
       <section className="px-5 py-3 bg-black/[0.02] dark:bg-white/[0.02] border-b border-black/5 dark:border-white/5 flex items-center justify-between transition-colors">
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 flex-1 pr-2">
           <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0 font-medium">You:</span>
@@ -900,7 +924,6 @@ export default function TabPage() {
               </button>
             </div>
 
-            {/* Quick Add Input */}
             <form onSubmit={handleAddMember} className="flex gap-2">
               <input
                 type="text"
@@ -920,7 +943,6 @@ export default function TabPage() {
               </button>
             </form>
 
-            {/* Current Members List */}
             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
               {members.map((m) => {
                 const net = getMemberNetBalance(m.id);
@@ -1200,7 +1222,6 @@ export default function TabPage() {
                 </div>
               ) : null}
 
-              {/* Display Custom Uploaded QR or Fallback to Generated QR */}
               {(hasCustomQr || hasPaymentDetails) && (
                 <div className="bg-white p-3 rounded-2xl w-fit mx-auto shadow-inner border border-black/5">
                   {hasCustomQr ? (
@@ -1366,7 +1387,7 @@ export default function TabPage() {
                 </div>
               </div>
 
-              {/* Dynamic Split Input Area */}
+              {/* Split Input Area */}
               {splitMode === "equal" ? (
                 <div>
                   <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-2 block">Split Between</label>
