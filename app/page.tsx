@@ -219,8 +219,10 @@ export default function HomePage() {
         )}
       </div>
 
-      <footer className="text-center pt-8 text-[11px] text-slate-400 dark:text-slate-500">
-        Evenly · Frictionless Group Expenses
+      <footer className="text-center pt-8 text-[11px] text-slate-400 dark:text-slate-500 tracking-wide">
+        <span>Evenly</span>
+        <span className="mx-1.5 opacity-40">·</span>
+        <span>Built by <span className="font-semibold text-slate-600 dark:text-slate-300">EJO</span></span>
       </footer>
     </main>
   );
