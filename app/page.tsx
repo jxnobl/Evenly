@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Plus, History, ArrowRight, Trash2, CheckCircle2, Clock, Sparkles } from "lucide-react";
+import { Plus, History, ArrowRight, Trash2, CheckCircle2, Clock } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { computeSettlements, Member, Expense, PaymentRecord } from "@/lib/algorithm";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -51,10 +52,6 @@ export default function HomePage() {
     if (!tabsData || tabsData.length === 0) return;
 
     const tabIds = tabsData.map((t) => t.id);
-    const slugToIdMap: Record<string, string> = {};
-    tabsData.forEach((t) => {
-      slugToIdMap[t.id] = t.slug;
-    });
 
     const [membersRes, expensesRes, splitsRes, paymentsRes] = await Promise.all([
       supabase.from("tab_members").select("id, tab_id, name").in("tab_id", tabIds),
@@ -131,8 +128,15 @@ export default function HomePage() {
     <main className="min-h-screen max-w-md mx-auto p-5 pb-24 relative flex flex-col justify-between">
       <div className="space-y-6">
         <header className="flex items-center justify-between pt-2">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">💸</span>
+          <div className="flex items-center gap-2.5">
+            <Image
+              src="/icon.svg"
+              alt="Evenly Logo"
+              width={26}
+              height={26}
+              className="rounded-md"
+              priority
+            />
             <span className="font-extrabold text-lg tracking-tight text-slate-900 dark:text-white">Evenly</span>
           </div>
           <ThemeToggle />
