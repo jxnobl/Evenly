@@ -1,223 +1,223 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
-import { Plus, X, ArrowRight, Loader2, Users } from "lucide-react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { Plus, History, ArrowRight, Trash2, CheckCircle2, Clock, Sparkles } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { computeSettlements, Member, Expense, PaymentRecord } from "@/lib/algorithm";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 interface RecentTab {
   slug: string;
   title: string;
-  lastVisited?: number;
+  lastVisited: number;
 }
 
-export default function Home() {
+interface TabStatus {
+  isSettled: boolean;
+  unsettledAmount: number;
+  loading: boolean;
+}
+
+export default function HomePage() {
   const router = useRouter();
-  const [title, setTitle] = useState("");
-  const [members, setMembers] = useState<string[]>(["", ""]);
   const [recentTabs, setRecentTabs] = useState<RecentTab[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [tabStatuses, setTabStatuses] = useState<Record<string, TabStatus>>({});
 
   useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem("evenly_recent_tabs") || "[]");
-      setRecentTabs(saved);
+      const stored = localStorage.getItem("evenly_recent_tabs");
+      if (stored) {
+        const parsed: RecentTab[] = JSON.parse(stored);
+        setRecentTabs(parsed);
+        fetchTabsSettlementStatus(parsed);
+      }
     } catch (e) {
-      console.error("Failed to read recent tabs:", e);
+      console.error("Failed to parse recent tabs:", e);
     }
   }, []);
 
-  const handleAddMember = () => {
-    setMembers([...members, ""]);
+  const fetchTabsSettlementStatus = async (tabs: RecentTab[]) => {
+    if (tabs.length === 0) return;
+
+    const slugs = tabs.map((t) => t.slug);
+
+    const { data: tabsData } = await supabase
+      .from("tabs")
+      .select("id, slug")
+      .in("slug", slugs);
+
+    if (!tabsData || tabsData.length === 0) return;
+
+    const tabIds = tabsData.map((t) => t.id);
+    const slugToIdMap: Record<string, string> = {};
+    tabsData.forEach((t) => {
+      slugToIdMap[t.id] = t.slug;
+    });
+
+    const [membersRes, expensesRes, splitsRes, paymentsRes] = await Promise.all([
+      supabase.from("tab_members").select("id, tab_id, name").in("tab_id", tabIds),
+      supabase.from("expenses").select("id, tab_id, payer_member_id, amount").in("tab_id", tabIds),
+      supabase.from("expense_splits").select("expense_id, member_id, amount_owed"),
+      supabase.from("payments").select("tab_id, payer_id, receiver_id, amount").in("tab_id", tabIds),
+    ]);
+
+    const membersByTab: Record<string, Member[]> = {};
+    (membersRes.data || []).forEach((m) => {
+      if (!membersByTab[m.tab_id]) membersByTab[m.tab_id] = [];
+      membersByTab[m.tab_id].push({ id: m.id, name: m.name });
+    });
+
+    const splitsByExpense: Record<string, { memberId: string; amountOwed: number }[]> = {};
+    (splitsRes.data || []).forEach((s) => {
+      if (!splitsByExpense[s.expense_id]) splitsByExpense[s.expense_id] = [];
+      splitsByExpense[s.expense_id].push({
+        memberId: s.member_id,
+        amountOwed: Number(s.amount_owed),
+      });
+    });
+
+    const expensesByTab: Record<string, Expense[]> = {};
+    (expensesRes.data || []).forEach((e) => {
+      if (!expensesByTab[e.tab_id]) expensesByTab[e.tab_id] = [];
+      expensesByTab[e.tab_id].push({
+        id: e.id,
+        payerMemberId: e.payer_member_id,
+        amount: Number(e.amount),
+        splits: splitsByExpense[e.id] || [],
+      });
+    });
+
+    const paymentsByTab: Record<string, PaymentRecord[]> = {};
+    (paymentsRes.data || []).forEach((p) => {
+      if (!paymentsByTab[p.tab_id]) paymentsByTab[p.tab_id] = [];
+      paymentsByTab[p.tab_id].push({
+        payer_id: p.payer_id,
+        receiver_id: p.receiver_id,
+        amount: Number(p.amount),
+      });
+    });
+
+    const statuses: Record<string, TabStatus> = {};
+
+    tabsData.forEach((t) => {
+      const mems = membersByTab[t.id] || [];
+      const exps = expensesByTab[t.id] || [];
+      const pays = paymentsByTab[t.id] || [];
+
+      const settlements = computeSettlements(mems, exps, pays);
+      const totalRemaining = settlements.reduce((sum, s) => sum + s.amount, 0);
+
+      statuses[t.slug] = {
+        isSettled: settlements.length === 0,
+        unsettledAmount: Math.round(totalRemaining * 100) / 100,
+        loading: false,
+      };
+    });
+
+    setTabStatuses(statuses);
   };
 
-  const handleRemoveMember = (index: number) => {
-    if (members.length > 2) {
-      setMembers(members.filter((_, i) => i !== index));
-    }
-  };
-
-  const handleMemberChange = (index: number, value: string) => {
-    const updated = [...members];
-    updated[index] = value;
-    setMembers(updated);
-  };
-
-  const handleCreateTab = async (e: React.FormEvent) => {
+  const removeRecentTab = (slugToRemove: string, e: React.MouseEvent) => {
     e.preventDefault();
-    const cleanTitle = title.trim();
-    const cleanMembers = members.map((m) => m.trim()).filter(Boolean);
-
-    if (!cleanTitle || cleanMembers.length < 2 || loading) return;
-
-    setLoading(true);
-    setErrorMessage(null);
-
-    const generatedSlug = `${cleanTitle
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")}-${Math.random().toString(36).substring(2, 6)}`;
-
-    try {
-      const { data: tabData, error: tabError } = await supabase
-        .from("tabs")
-        .insert([{ title: cleanTitle, slug: generatedSlug }])
-        .select()
-        .single();
-
-      if (tabError) throw tabError;
-
-      const memberInserts = cleanMembers.map((name) => ({
-        tab_id: tabData.id,
-        name,
-      }));
-
-      const { error: memberError } = await supabase
-        .from("tab_members")
-        .insert(memberInserts);
-
-      if (memberError) throw memberError;
-
-      try {
-        const existing = JSON.parse(localStorage.getItem("evenly_recent_tabs") || "[]");
-        const filtered = existing.filter((item: RecentTab) => item.slug !== tabData.slug);
-        const updated = [{ slug: tabData.slug, title: tabData.title, lastVisited: Date.now() }, ...filtered].slice(0, 10);
-        localStorage.setItem("evenly_recent_tabs", JSON.stringify(updated));
-      } catch (err) {
-        console.error("Error writing recent tab:", err);
-      }
-
-      router.push(`/tab/${generatedSlug}`);
-    } catch (err: any) {
-      console.error("Tab creation failed:", err);
-      setErrorMessage(err.message || "Failed to create tab. Check connection.");
-      setLoading(false);
-    }
+    e.stopPropagation();
+    const updated = recentTabs.filter((t) => t.slug !== slugToRemove);
+    setRecentTabs(updated);
+    localStorage.setItem("evenly_recent_tabs", JSON.stringify(updated));
   };
 
   return (
-    <main className="min-h-screen flex flex-col justify-center px-5 py-12 max-w-md mx-auto relative transition-colors">
-      <div className="absolute top-5 right-5">
-        <ThemeToggle />
-      </div>
-
-      <div className="text-center space-y-2 mb-8">
-        <div className="inline-flex p-3 rounded-2xl bg-emerald-500/10 mb-2 border border-emerald-500/20 shadow-sm">
-          <Image
-            src="/icon.svg"
-            alt="Evenly Logo"
-            width={36}
-            height={36}
-            priority
-            className="rounded-lg"
-          />
-        </div>
-        <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">Evenly</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Split group expenses and settle up with GCash, Maya, and QR Ph.
-        </p>
-      </div>
-
-      <div className="bg-white dark:bg-white/[0.03] border border-black/5 dark:border-white/10 rounded-2xl p-6 backdrop-blur-md shadow-sm dark:shadow-xl transition-colors">
-        <form onSubmit={handleCreateTab} className="space-y-5">
-          <div>
-            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Tab Title
-            </label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. Boracay Weekend, Samgyup"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full mt-1.5 bg-slate-100 dark:bg-[#1A2234] border border-black/10 dark:border-white/10 rounded-xl px-4 py-3 text-slate-900 dark:text-white text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition"
-            />
+    <main className="min-h-screen max-w-md mx-auto p-5 pb-24 relative flex flex-col justify-between">
+      <div className="space-y-6">
+        <header className="flex items-center justify-between pt-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">💸</span>
+            <span className="font-extrabold text-lg tracking-tight text-slate-900 dark:text-white">Evenly</span>
           </div>
+          <ThemeToggle />
+        </header>
 
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Users size={13} /> Group Members
-              </label>
-              <button
-                type="button"
-                onClick={handleAddMember}
-                className="text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 flex items-center gap-1 font-semibold"
-              >
-                <Plus size={14} /> Add Person
-              </button>
+        <section className="space-y-2 py-4">
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white leading-tight tracking-tight">
+            Split expenses without friction.
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            No sign-ups, no apps to install. Create a tab, share the link, and settle debts instantly via GCash, Maya, or QR Ph.
+          </p>
+        </section>
+
+        <Link
+          href="/new"
+          className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-[0.98] transition text-sm"
+        >
+          <Plus size={18} /> Create a Tab
+        </Link>
+
+        {recentTabs.length > 0 && (
+          <section className="space-y-3 pt-2">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                <History size={14} className="text-emerald-500" /> Recent Tabs
+              </h2>
+              <span className="text-[11px] text-slate-400 font-mono">{recentTabs.length} tabs</span>
             </div>
 
-            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-              {members.map((member, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    required
-                    placeholder={`Member ${idx + 1}`}
-                    value={member}
-                    onChange={(e) => handleMemberChange(idx, e.target.value)}
-                    className="flex-1 bg-slate-100 dark:bg-white/[0.05] border border-black/10 dark:border-white/10 rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white text-sm focus:border-emerald-500 outline-none transition"
-                  />
-                  {members.length > 2 && (
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveMember(idx)}
-                      className="p-2 text-slate-400 hover:text-rose-500 rounded-lg transition"
-                    >
-                      <X size={16} />
-                    </button>
-                  )}
-                </div>
-              ))}
+            <div className="space-y-2.5">
+              {recentTabs.map((tab) => {
+                const status = tabStatuses[tab.slug];
+
+                return (
+                  <Link
+                    key={tab.slug}
+                    href={`/tab/${tab.slug}`}
+                    className="group block p-4 rounded-2xl bg-white dark:bg-white/[0.02] border border-black/5 dark:border-white/5 hover:border-emerald-500/30 transition duration-200 shadow-sm relative overflow-hidden"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1 pr-2">
+                        <h3 className="font-semibold text-sm text-slate-900 dark:text-white group-hover:text-emerald-500 transition">
+                          {tab.title}
+                        </h3>
+
+                        {status ? (
+                          status.isSettled ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                              <CheckCircle2 size={12} /> All settled
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                              <Clock size={12} /> ₱{status.unsettledAmount.toFixed(2)} unsettled
+                            </span>
+                          )
+                        ) : (
+                          <span className="text-[11px] text-slate-400 animate-pulse">Checking status...</span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => removeRecentTab(tab.slug, e)}
+                          className="p-1.5 text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition rounded-lg"
+                          title="Remove from history"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                        <div className="p-1.5 rounded-xl bg-black/5 dark:bg-white/[0.04] text-slate-400 group-hover:text-emerald-500 group-hover:translate-x-0.5 transition">
+                          <ArrowRight size={14} />
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
-          </div>
-
-          {errorMessage && (
-            <p className="text-xs text-rose-500 bg-rose-500/10 border border-rose-500/20 p-3 rounded-xl font-mono">
-              {errorMessage}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-[0.98] transition disabled:opacity-50"
-          >
-            {loading ? (
-              <Loader2 size={18} className="animate-spin" />
-            ) : (
-              <>
-                Create Tab <ArrowRight size={16} />
-              </>
-            )}
-          </button>
-        </form>
+          </section>
+        )}
       </div>
 
-      {recentTabs.length > 0 && (
-        <div className="mt-8 space-y-3 animate-fade-in">
-          <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-            Recent Tabs
-          </h2>
-          <div className="space-y-2">
-            {recentTabs.map((t) => (
-              <Link
-                key={t.slug}
-                href={`/tab/${t.slug}`}
-                className="flex items-center justify-between p-3.5 rounded-xl bg-white dark:bg-white/[0.03] border border-black/5 dark:border-white/5 hover:border-emerald-500/40 hover:bg-slate-50 dark:hover:bg-white/[0.06] transition"
-              >
-                <span className="font-semibold text-sm text-slate-900 dark:text-white">{t.title}</span>
-                <span className="text-xs text-emerald-600 dark:text-emerald-400 font-mono">Open &rarr;</span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
+      <footer className="text-center pt-8 text-[11px] text-slate-400 dark:text-slate-500">
+        Evenly · Frictionless Group Expenses
+      </footer>
     </main>
   );
 }
