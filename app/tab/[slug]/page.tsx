@@ -461,10 +461,22 @@ export default function TabPage() {
     }
   };
 
+  const parsedTotalAmount = parseFloat(amount) || 0;
   const totalExactAllocated = Object.values(exactSplits).reduce(
     (sum, val) => sum + (parseFloat(val) || 0),
     0
   );
+  const remainingAmountToAllocate = Math.round((parsedTotalAmount - totalExactAllocated) * 100) / 100;
+
+  const handleFillRemaining = (memberId: string) => {
+    const currentVal = parseFloat(exactSplits[memberId]) || 0;
+    const available = Math.round((remainingAmountToAllocate + currentVal) * 100) / 100;
+    if (available <= 0) return;
+    setExactSplits({
+      ...exactSplits,
+      [memberId]: available.toFixed(2),
+    });
+  };
 
   const handleSaveExpense = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1388,47 +1400,91 @@ export default function TabPage() {
                   </div>
                 </div>
               ) : (
-                <div className="space-y-2.5">
+                <div className="space-y-3">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase">Custom Amounts</span>
                     <span
                       className={`font-mono font-medium ${
-                        Math.abs(totalExactAllocated - (parseFloat(amount) || 0)) < 0.01
+                        Math.abs(remainingAmountToAllocate) < 0.01
                           ? "text-emerald-600 dark:text-emerald-400"
-                          : "text-rose-500 dark:text-rose-400"
+                          : remainingAmountToAllocate < 0
+                          ? "text-rose-500 dark:text-rose-400"
+                          : "text-amber-500 dark:text-amber-400"
                       }`}
                     >
-                      ₱{totalExactAllocated.toFixed(2)} / ₱{(parseFloat(amount) || 0).toFixed(2)}
+                      ₱{totalExactAllocated.toFixed(2)} / ₱{parsedTotalAmount.toFixed(2)}
                     </span>
                   </div>
 
-                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                    {members.map((m) => (
-                      <div key={m.id} className="flex items-center justify-between gap-3 bg-slate-50 dark:bg-white/[0.02] border border-black/5 dark:border-white/5 p-2.5 rounded-xl">
-                        <span className="text-xs font-medium text-slate-800 dark:text-slate-300">{m.name}</span>
-                        <div className="flex items-center gap-1.5 w-32">
-                          <span className="text-xs text-slate-400">₱</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            placeholder="0.00"
-                            value={exactSplits[m.id] ?? ""}
-                            onChange={(e) =>
-                              setExactSplits({
-                                ...exactSplits,
-                                [m.id]: e.target.value,
-                              })
-                            }
-                            className="w-full bg-white dark:bg-white/[0.05] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1.5 text-right font-mono text-xs text-slate-900 dark:text-white outline-none focus:border-emerald-500 transition"
-                          />
-                        </div>
-                      </div>
-                    ))}
+                  {/* Real-time remaining banner */}
+                  <div
+                    className={`p-2.5 rounded-xl text-xs flex items-center justify-between border transition-all ${
+                      Math.abs(remainingAmountToAllocate) < 0.01
+                        ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                        : remainingAmountToAllocate < 0
+                        ? "bg-rose-500/10 border-rose-500/20 text-rose-500 dark:text-rose-400"
+                        : "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400"
+                    }`}
+                  >
+                    <span className="font-medium">
+                      {Math.abs(remainingAmountToAllocate) < 0.01
+                        ? "✓ Fully allocated! Amounts match total."
+                        : remainingAmountToAllocate < 0
+                        ? `⚠ Over allocated by ₱${Math.abs(remainingAmountToAllocate).toFixed(2)}`
+                        : `Remaining to allocate: ₱${remainingAmountToAllocate.toFixed(2)}`}
+                    </span>
+                    <span className="font-mono font-bold">
+                      {Math.abs(remainingAmountToAllocate) < 0.01
+                        ? "₱0.00 left"
+                        : `${remainingAmountToAllocate > 0 ? "₱" + remainingAmountToAllocate.toFixed(2) : "-₱" + Math.abs(remainingAmountToAllocate).toFixed(2)}`}
+                    </span>
                   </div>
 
-                  {Math.abs(totalExactAllocated - (parseFloat(amount) || 0)) > 0.05 && (
+                  <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                    {members.map((m) => {
+                      const currentVal = parseFloat(exactSplits[m.id]) || 0;
+                      const canAutoFill = remainingAmountToAllocate > 0;
+
+                      return (
+                        <div key={m.id} className="flex items-center justify-between gap-2.5 bg-slate-50 dark:bg-white/[0.02] border border-black/5 dark:border-white/5 p-2.5 rounded-xl">
+                          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                            <span className="text-xs font-medium text-slate-800 dark:text-slate-300 truncate">{m.name}</span>
+                            {canAutoFill && currentVal === 0 && (
+                              <button
+                                type="button"
+                                onClick={() => handleFillRemaining(m.id)}
+                                className="text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-1.5 py-0.5 rounded font-mono transition shrink-0"
+                                title="Fill remaining unallocated balance to this member"
+                              >
+                                +Remaining
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1.5 w-32 shrink-0">
+                            <span className="text-xs text-slate-400">₱</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={exactSplits[m.id] ?? ""}
+                              onChange={(e) =>
+                                setExactSplits({
+                                  ...exactSplits,
+                                  [m.id]: e.target.value,
+                                })
+                              }
+                              className="w-full bg-white dark:bg-white/[0.05] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1.5 text-right font-mono text-xs text-slate-900 dark:text-white outline-none focus:border-emerald-500 transition"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {Math.abs(remainingAmountToAllocate) > 0.05 && (
                     <p className="text-[11px] text-rose-500 dark:text-rose-400 flex items-center gap-1 animate-fade-in">
-                      <AlertCircle size={12} /> Sum does not match total expense.
+                      <AlertCircle size={12} /> The sum of all exact shares must equal ₱{parsedTotalAmount.toFixed(2)}.
                     </p>
                   )}
                 </div>
