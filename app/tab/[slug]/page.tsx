@@ -65,6 +65,13 @@ export default function TabPage() {
   const [renameTitle, setRenameTitle] = useState("");
   const [savingRename, setSavingRename] = useState(false);
 
+  // Group Pool / Ambag State
+  const [isPoolModalOpen, setIsPoolModalOpen] = useState(false);
+  const [poolTreasurerId, setPoolTreasurerId] = useState<string>("");
+  const [ambagContributorId, setAmbagContributorId] = useState<string>("");
+  const [ambagAmount, setAmbagAmount] = useState<string>("");
+  const [savingAmbag, setSavingAmbag] = useState(false);
+
   // Member Management State
   const [isManageMembersModalOpen, setIsManageMembersModalOpen] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
@@ -132,9 +139,15 @@ export default function TabPage() {
       const mems = memberData || [];
       setMembers(mems);
 
-      if (mems.length > 0 && !payerId) {
-        setPayerId(mems[0].id);
-        setSelectedMembers(mems.map((m) => m.id));
+      if (mems.length > 0) {
+        if (!payerId) {
+          setPayerId(mems[0].id);
+          setSelectedMembers(mems.map((m) => m.id));
+        }
+        if (!poolTreasurerId) {
+          setPoolTreasurerId(mems[0].id);
+          setAmbagContributorId(mems[1]?.id || mems[0].id);
+        }
       }
 
       const { data: rawExpenses, error: expErr } = await supabase
@@ -198,7 +211,7 @@ export default function TabPage() {
     } finally {
       setLoading(false);
     }
-  }, [slug, payerId]);
+  }, [slug, payerId, poolTreasurerId]);
 
   useEffect(() => {
     fetchTabData();
@@ -461,7 +474,7 @@ export default function TabPage() {
     setAmount("");
     setSplitMode("equal");
     if (members.length > 0) {
-      setPayerId(members[0].id);
+      setPayerId(poolTreasurerId || members[0].id);
       setSelectedMembers(members.map((m) => m.id));
       const initialExact: Record<string, string> = {};
       members.forEach((m) => {
@@ -665,6 +678,17 @@ export default function TabPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Group Pool / Ambag Calculations
+  const totalAmbagCollected = payments
+    .filter((p) => p.receiver_id === poolTreasurerId)
+    .reduce((sum, p) => sum + p.amount, 0);
+
+  const totalSpentFromPool = expenses
+    .filter((e) => e.payerMemberId === poolTreasurerId)
+    .reduce((sum, e) => sum + e.amount, 0);
+
+  const poolRemainingBalance = Math.round((totalAmbagCollected - totalSpentFromPool) * 100) / 100;
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center text-slate-500 dark:text-slate-400 gap-2">
@@ -793,7 +817,54 @@ export default function TabPage() {
       </section>
 
       <div className="p-5 space-y-6">
-        {/* Settlements */}
+        {/* Group Fund / Ambag Overview Card */}
+        <section className="bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/20 rounded-2xl p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-base">💰</span>
+              <div>
+                <h2 className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                  Group Fund / Ambag
+                </h2>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Held by <span className="font-semibold text-slate-900 dark:text-white">{getMember(poolTreasurerId)?.name || "Treasurer"}</span>
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsPoolModalOpen(true)}
+              className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-black font-semibold rounded-xl text-xs flex items-center gap-1 active:scale-95 transition shadow-sm"
+            >
+              <Plus size={13} /> Add Ambag
+            </button>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 pt-1 text-center">
+            <div className="p-2.5 rounded-xl bg-white/60 dark:bg-white/[0.03] border border-black/5 dark:border-white/5">
+              <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Collected</p>
+              <p className="font-mono font-bold text-slate-900 dark:text-white text-xs mt-0.5">
+                ₱{totalAmbagCollected.toFixed(2)}
+              </p>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-white/60 dark:bg-white/[0.03] border border-black/5 dark:border-white/5">
+              <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Spent</p>
+              <p className="font-mono font-bold text-slate-900 dark:text-white text-xs mt-0.5">
+                ₱{totalSpentFromPool.toFixed(2)}
+              </p>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-white/60 dark:bg-white/[0.03] border border-black/5 dark:border-white/5">
+              <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Left in Pool</p>
+              <p className={`font-mono font-bold text-xs mt-0.5 ${poolRemainingBalance >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500"}`}>
+                ₱{poolRemainingBalance.toFixed(2)}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* Suggested Settle Up */}
         <section className="bg-white dark:bg-white/[0.03] border border-black/5 dark:border-white/10 rounded-2xl p-5 backdrop-blur-md shadow-sm dark:shadow-lg animate-fade-in transition-colors">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
@@ -897,7 +968,7 @@ export default function TabPage() {
               className="w-full flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition"
             >
               <span className="flex items-center gap-1.5">
-                <History size={14} className="text-emerald-500 dark:text-emerald-400" /> Settled Payments ({payments.length})
+                <History size={14} className="text-emerald-500 dark:text-emerald-400" /> Settled Payments & Ambag ({payments.length})
               </span>
               {showHistory ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
@@ -915,7 +986,7 @@ export default function TabPage() {
                     >
                       <div className="space-y-0.5">
                         <div className="text-slate-700 dark:text-slate-300">
-                          <span className="text-slate-500 dark:text-slate-400 font-medium">{debtor?.name}</span> paid{" "}
+                          <span className="text-slate-500 dark:text-slate-400 font-medium">{debtor?.name}</span> contributed/paid to{" "}
                           <span className="text-emerald-600 dark:text-emerald-400 font-medium">{creditor?.name}</span>
                         </div>
                         {p.created_at && (
@@ -962,6 +1033,116 @@ export default function TabPage() {
           </button>
         </div>
       </div>
+
+      {/* Record Ambag Modal */}
+      {isPoolModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 dark:bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-[#121824] border-t sm:border border-black/10 dark:border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-4 animate-sheet-up shadow-2xl">
+            <div className="flex justify-between items-center">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <span>💰</span> Log Upfront Ambag
+              </h3>
+              <button
+                onClick={() => setIsPoolModalOpen(false)}
+                className="text-slate-400 hover:text-slate-900 dark:hover:text-white p-1 active:scale-90 transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Record money contributed upfront to the pool. Uneven amounts are automatically balanced during settlement.
+            </p>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const amt = parseFloat(ambagAmount);
+                if (!tab || isNaN(amt) || amt <= 0 || savingAmbag) return;
+
+                setSavingAmbag(true);
+                try {
+                  const { error } = await supabase.from("payments").insert([
+                    {
+                      tab_id: tab.id,
+                      payer_id: ambagContributorId,
+                      receiver_id: poolTreasurerId,
+                      amount: amt,
+                    },
+                  ]);
+                  if (error) throw error;
+
+                  setAmbagAmount("");
+                  setIsPoolModalOpen(false);
+                  await fetchTabData();
+                } catch (err: any) {
+                  alert(err.message || "Failed to record ambag");
+                } finally {
+                  setSavingAmbag(false);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
+                  Treasurer (Holding the Pool)
+                </label>
+                <select
+                  value={poolTreasurerId}
+                  onChange={(e) => setPoolTreasurerId(e.target.value)}
+                  className="w-full mt-1 bg-slate-100 dark:bg-[#1A2234] border border-black/10 dark:border-white/10 rounded-xl px-4 py-3 text-slate-900 dark:text-white text-sm outline-none transition focus:border-emerald-500"
+                >
+                  {members.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
+                  Who is Contributing?
+                </label>
+                <select
+                  value={ambagContributorId}
+                  onChange={(e) => setAmbagContributorId(e.target.value)}
+                  className="w-full mt-1 bg-slate-100 dark:bg-[#1A2234] border border-black/10 dark:border-white/10 rounded-xl px-4 py-3 text-slate-900 dark:text-white text-sm outline-none transition focus:border-emerald-500"
+                >
+                  {members.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} {m.id === poolTreasurerId ? "(Self-Contribution)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
+                  Ambag Amount (₱)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  placeholder="500.00"
+                  value={ambagAmount}
+                  onChange={(e) => setAmbagAmount(e.target.value)}
+                  className="w-full mt-1 bg-slate-100 dark:bg-white/[0.05] border border-black/10 dark:border-white/10 rounded-xl px-4 py-3 font-mono text-slate-900 dark:text-white text-sm outline-none transition focus:border-emerald-500"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={savingAmbag}
+                className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3.5 rounded-xl text-sm active:scale-95 transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+              >
+                {savingAmbag ? <Loader2 size={16} className="animate-spin" /> : "Record Contribution"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Rename Tab Modal */}
       {isRenameModalOpen && (
@@ -1445,7 +1626,9 @@ export default function TabPage() {
                   className="w-full mt-1 bg-slate-100 dark:bg-[#1A2234] border border-black/10 dark:border-white/10 rounded-xl px-4 py-3 text-slate-900 dark:text-white text-sm focus:border-emerald-500 outline-none transition"
                 >
                   {members.map((m) => (
-                    <option key={m.id} value={m.id}>{m.name}</option>
+                    <option key={m.id} value={m.id}>
+                      {m.name} {m.id === poolTreasurerId ? "(Treasurer)" : ""}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -1529,7 +1712,6 @@ export default function TabPage() {
                     </span>
                   </div>
 
-                  {/* Real-time remaining banner */}
                   <div
                     className={`p-2.5 rounded-xl text-xs flex items-center justify-between border transition-all ${
                       Math.abs(remainingAmountToAllocate) < 0.01
