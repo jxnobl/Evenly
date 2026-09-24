@@ -80,7 +80,10 @@ export default function TabPage() {
   const [isDeletingTab, setIsDeletingTab] = useState(false);
 
   const [showHistory, setShowHistory] = useState(true);
+  
+  // Settlement State with Partial Payment Support
   const [activeSettlement, setActiveSettlement] = useState<Settlement | null>(null);
+  const [customSettlementAmount, setCustomSettlementAmount] = useState<string>("");
   const [upscaledQrUrl, setUpscaledQrUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [settling, setSettling] = useState(false);
@@ -652,6 +655,12 @@ export default function TabPage() {
 
   const handleConfirmSettlement = async (s: Settlement) => {
     if (!tab || settling) return;
+    const finalAmount = parseFloat(customSettlementAmount);
+    if (isNaN(finalAmount) || finalAmount <= 0) {
+      alert("Please enter a valid payment amount.");
+      return;
+    }
+
     setSettling(true);
     try {
       const { error } = await supabase.from("payments").insert([
@@ -659,14 +668,14 @@ export default function TabPage() {
           tab_id: tab.id,
           payer_id: s.debtorId,
           receiver_id: s.creditorId,
-          amount: s.amount,
+          amount: finalAmount,
         },
       ]);
       if (error) throw error;
       setActiveSettlement(null);
       await fetchTabData();
     } catch (err: any) {
-      alert(err.message || "Failed to settle payment");
+      alert(err.message || "Failed to record payment");
     } finally {
       setSettling(false);
     }
@@ -897,6 +906,7 @@ export default function TabPage() {
                       <button
                         onClick={() => {
                           setActiveSettlement(s);
+                          setCustomSettlementAmount(s.amount.toFixed(2));
                           setCopied(false);
                         }}
                         className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-lg text-xs font-semibold flex items-center gap-1 active:scale-95 transition"
@@ -1444,12 +1454,14 @@ export default function TabPage() {
         </div>
       )}
 
-      {/* Settle Up Modal */}
+      {/* Settle Up Modal with Partial Payment Support */}
       {activeSettlement && (() => {
         const creditor = getMember(activeSettlement.creditorId);
         const debtor = getMember(activeSettlement.debtorId);
         const hasPaymentDetails = Boolean(creditor?.account_number);
         const hasCustomQr = Boolean(creditor?.qr_image_url);
+        const enteredAmount = parseFloat(customSettlementAmount) || 0;
+        const isPartial = enteredAmount > 0 && enteredAmount < activeSettlement.amount;
 
         return (
           <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-5 animate-fade-in">
@@ -1463,11 +1475,28 @@ export default function TabPage() {
 
               <div>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  <span className="text-rose-500 dark:text-rose-400 font-semibold">{debtor?.name}</span> pays <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{creditor?.name}</span>
+                  <span className="text-rose-500 dark:text-rose-400 font-semibold">{debtor?.name}</span> owes <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{creditor?.name}</span> ₱{activeSettlement.amount.toFixed(2)}
                 </p>
-                <p className="text-3xl font-black font-mono text-slate-900 dark:text-white mt-1">
-                  ₱{activeSettlement.amount.toFixed(2)}
-                </p>
+                <div className="mt-2">
+                  <label className="text-[11px] font-semibold text-slate-400 uppercase block mb-1">
+                    Amount Being Paid Now (₱)
+                  </label>
+                  <div className="flex items-center justify-center gap-1.5">
+                    <span className="text-2xl font-bold font-mono text-slate-400">₱</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={customSettlementAmount}
+                      onChange={(e) => setCustomSettlementAmount(e.target.value)}
+                      className="text-3xl font-black font-mono text-slate-900 dark:text-white bg-black/5 dark:bg-white/[0.04] border border-black/10 dark:border-white/10 rounded-2xl w-40 py-1 text-center outline-none focus:border-emerald-500 transition"
+                    />
+                  </div>
+                  {isPartial && (
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+                      Partial payment. ₱{(activeSettlement.amount - enteredAmount).toFixed(2)} will remain owed.
+                    </p>
+                  )}
+                </div>
               </div>
 
               {hasPaymentDetails ? (
@@ -1519,8 +1548,8 @@ export default function TabPage() {
                     <QRCodeSVG
                       value={
                         hasPaymentDetails && creditor
-                          ? `${creditor.payment_method?.toLowerCase()}://${creditor.account_number}?amount=${activeSettlement.amount}`
-                          : `evenly://pay?recipient=${encodeURIComponent(creditor?.name || "")}&amount=${activeSettlement.amount}`
+                          ? `${creditor.payment_method?.toLowerCase()}://${creditor.account_number}?amount=${enteredAmount}`
+                          : `evenly://pay?recipient=${encodeURIComponent(creditor?.name || "")}&amount=${enteredAmount}`
                       }
                       size={140}
                       level="M"
@@ -1532,14 +1561,14 @@ export default function TabPage() {
               <div className="space-y-2 pt-2">
                 <button
                   onClick={() => handleConfirmSettlement(activeSettlement)}
-                  disabled={settling}
+                  disabled={settling || enteredAmount <= 0}
                   className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-1.5 active:scale-95 transition disabled:opacity-50"
                 >
                   {settling ? (
                     <Loader2 size={16} className="animate-spin" />
                   ) : (
                     <>
-                      <CheckCircle2 size={16} /> Mark as Paid
+                      <CheckCircle2 size={16} /> Record Payment (₱{enteredAmount.toFixed(2)})
                     </>
                   )}
                 </button>

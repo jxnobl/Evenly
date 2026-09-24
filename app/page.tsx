@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { Plus, History, ArrowRight, Trash2, CheckCircle2, Clock } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { computeSettlements, Member, Expense, PaymentRecord } from "@/lib/algorithm";
@@ -22,99 +21,104 @@ interface TabStatus {
 }
 
 export default function HomePage() {
-  const router = useRouter();
   const [recentTabs, setRecentTabs] = useState<RecentTab[]>([]);
   const [tabStatuses, setTabStatuses] = useState<Record<string, TabStatus>>({});
+
+  const fetchTabsSettlementStatus = useCallback(async (tabs: RecentTab[]) => {
+    if (tabs.length === 0) return;
+
+    try {
+      const slugs = tabs.map((t) => t.slug);
+
+      const { data: tabsData, error: tabErr } = await supabase
+        .from("tabs")
+        .select("id, slug")
+        .in("slug", slugs);
+
+      if (tabErr || !tabsData || tabsData.length === 0) return;
+
+      const tabIds = tabsData.map((t) => t.id);
+
+      const [membersRes, expensesRes, splitsRes, paymentsRes] = await Promise.all([
+        supabase.from("tab_members").select("id, tab_id, name").in("tab_id", tabIds),
+        supabase.from("expenses").select("id, tab_id, payer_member_id, amount").in("tab_id", tabIds),
+        supabase.from("expense_splits").select("expense_id, member_id, amount_owed"),
+        supabase.from("payments").select("tab_id, payer_id, receiver_id, amount").in("tab_id", tabIds),
+      ]);
+
+      const membersByTab: Record<string, Member[]> = {};
+      (membersRes.data || []).forEach((m) => {
+        if (!membersByTab[m.tab_id]) membersByTab[m.tab_id] = [];
+        membersByTab[m.tab_id].push({ id: m.id, name: m.name });
+      });
+
+      const splitsByExpense: Record<string, { memberId: string; amountOwed: number }[]> = {};
+      (splitsRes.data || []).forEach((s) => {
+        if (!splitsByExpense[s.expense_id]) splitsByExpense[s.expense_id] = [];
+        splitsByExpense[s.expense_id].push({
+          memberId: s.member_id,
+          amountOwed: Number(s.amount_owed),
+        });
+      });
+
+      const expensesByTab: Record<string, Expense[]> = {};
+      (expensesRes.data || []).forEach((e) => {
+        if (!expensesByTab[e.tab_id]) expensesByTab[e.tab_id] = [];
+        expensesByTab[e.tab_id].push({
+          id: e.id,
+          payerMemberId: e.payer_member_id,
+          amount: Number(e.amount),
+          splits: splitsByExpense[e.id] || [],
+        });
+      });
+
+      const paymentsByTab: Record<string, PaymentRecord[]> = {};
+      (paymentsRes.data || []).forEach((p) => {
+        if (!paymentsByTab[p.tab_id]) paymentsByTab[p.tab_id] = [];
+        paymentsByTab[p.tab_id].push({
+          payer_id: p.payer_id,
+          receiver_id: p.receiver_id,
+          amount: Number(p.amount),
+        });
+      });
+
+      const statuses: Record<string, TabStatus> = {};
+
+      tabsData.forEach((t) => {
+        const mems = membersByTab[t.id] || [];
+        const exps = expensesByTab[t.id] || [];
+        const pays = paymentsByTab[t.id] || [];
+
+        const settlements = computeSettlements(mems, exps, pays);
+        const totalRemaining = settlements.reduce((sum, s) => sum + s.amount, 0);
+
+        statuses[t.slug] = {
+          isSettled: settlements.length === 0,
+          unsettledAmount: Math.round(totalRemaining * 100) / 100,
+          loading: false,
+        };
+      });
+
+      setTabStatuses((prev) => ({ ...prev, ...statuses }));
+    } catch (err) {
+      console.error("Failed to load status for tabs:", err);
+    }
+  }, []);
 
   useEffect(() => {
     try {
       const stored = localStorage.getItem("evenly_recent_tabs");
       if (stored) {
-        const parsed: RecentTab[] = JSON.parse(stored);
-        setRecentTabs(parsed);
-        fetchTabsSettlementStatus(parsed);
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setRecentTabs(parsed);
+          fetchTabsSettlementStatus(parsed);
+        }
       }
     } catch (e) {
-      console.error("Failed to parse recent tabs:", e);
+      console.error("Failed to read tabs from localStorage:", e);
     }
-  }, []);
-
-  const fetchTabsSettlementStatus = async (tabs: RecentTab[]) => {
-    if (tabs.length === 0) return;
-
-    const slugs = tabs.map((t) => t.slug);
-
-    const { data: tabsData } = await supabase
-      .from("tabs")
-      .select("id, slug")
-      .in("slug", slugs);
-
-    if (!tabsData || tabsData.length === 0) return;
-
-    const tabIds = tabsData.map((t) => t.id);
-
-    const [membersRes, expensesRes, splitsRes, paymentsRes] = await Promise.all([
-      supabase.from("tab_members").select("id, tab_id, name").in("tab_id", tabIds),
-      supabase.from("expenses").select("id, tab_id, payer_member_id, amount").in("tab_id", tabIds),
-      supabase.from("expense_splits").select("expense_id, member_id, amount_owed"),
-      supabase.from("payments").select("tab_id, payer_id, receiver_id, amount").in("tab_id", tabIds),
-    ]);
-
-    const membersByTab: Record<string, Member[]> = {};
-    (membersRes.data || []).forEach((m) => {
-      if (!membersByTab[m.tab_id]) membersByTab[m.tab_id] = [];
-      membersByTab[m.tab_id].push({ id: m.id, name: m.name });
-    });
-
-    const splitsByExpense: Record<string, { memberId: string; amountOwed: number }[]> = {};
-    (splitsRes.data || []).forEach((s) => {
-      if (!splitsByExpense[s.expense_id]) splitsByExpense[s.expense_id] = [];
-      splitsByExpense[s.expense_id].push({
-        memberId: s.member_id,
-        amountOwed: Number(s.amount_owed),
-      });
-    });
-
-    const expensesByTab: Record<string, Expense[]> = {};
-    (expensesRes.data || []).forEach((e) => {
-      if (!expensesByTab[e.tab_id]) expensesByTab[e.tab_id] = [];
-      expensesByTab[e.tab_id].push({
-        id: e.id,
-        payerMemberId: e.payer_member_id,
-        amount: Number(e.amount),
-        splits: splitsByExpense[e.id] || [],
-      });
-    });
-
-    const paymentsByTab: Record<string, PaymentRecord[]> = {};
-    (paymentsRes.data || []).forEach((p) => {
-      if (!paymentsByTab[p.tab_id]) paymentsByTab[p.tab_id] = [];
-      paymentsByTab[p.tab_id].push({
-        payer_id: p.payer_id,
-        receiver_id: p.receiver_id,
-        amount: Number(p.amount),
-      });
-    });
-
-    const statuses: Record<string, TabStatus> = {};
-
-    tabsData.forEach((t) => {
-      const mems = membersByTab[t.id] || [];
-      const exps = expensesByTab[t.id] || [];
-      const pays = paymentsByTab[t.id] || [];
-
-      const settlements = computeSettlements(mems, exps, pays);
-      const totalRemaining = settlements.reduce((sum, s) => sum + s.amount, 0);
-
-      statuses[t.slug] = {
-        isSettled: settlements.length === 0,
-        unsettledAmount: Math.round(totalRemaining * 100) / 100,
-        loading: false,
-      };
-    });
-
-    setTabStatuses(statuses);
-  };
+  }, [fetchTabsSettlementStatus]);
 
   const removeRecentTab = (slugToRemove: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -194,7 +198,7 @@ export default function HomePage() {
                             </span>
                           )
                         ) : (
-                          <span className="text-[11px] text-slate-400 animate-pulse">Checking status...</span>
+                          <span className="text-[11px] text-slate-400 animate-pulse">View tab &rarr;</span>
                         )}
                       </div>
 
