@@ -373,8 +373,6 @@ export default function TabPage() {
   // Convert Income/Sales items into inverse expenses so computeSettlements distributes proceeds to partners
   const normalizedExpenses: Expense[] = expenses.map((exp) => {
     if (exp.is_income) {
-      // In income/sale, the collector holds money on behalf of partners
-      // We flip signs so participants are credited and collector owes the proceeds
       return {
         id: exp.id,
         payerMemberId: exp.payerMemberId,
@@ -712,20 +710,31 @@ export default function TabPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Group Pool / Ambag Calculations
+  // Group Pool / Ambag Calculations with Refund & Outflow Math
+  // 1. Total contributed into the treasurer's hands
   const totalAmbagCollected = payments
     .filter((p) => p.receiver_id === poolTreasurerId)
     .reduce((sum, p) => sum + p.amount, 0);
 
+  // 2. Total refunded / sent back by the treasurer to members
+  const totalRefundedFromPool = payments
+    .filter((p) => p.payer_id === poolTreasurerId)
+    .reduce((sum, p) => sum + p.amount, 0);
+
+  // 3. Normal expenses paid by the treasurer
   const totalSpentFromPool = expenses
     .filter((e) => e.payerMemberId === poolTreasurerId && !e.is_income)
     .reduce((sum, e) => sum + e.amount, 0);
 
+  // 4. Inflow from reselling or sales profit collected by the treasurer
   const totalSalesToPool = expenses
     .filter((e) => e.payerMemberId === poolTreasurerId && e.is_income)
     .reduce((sum, e) => sum + e.amount, 0);
 
-  const poolRemainingBalance = Math.round((totalAmbagCollected - totalSpentFromPool + totalSalesToPool) * 100) / 100;
+  // 5. Cash remaining in the treasurer's hands (subtracts refunds and expenses)
+  const poolRemainingBalance = Math.round(
+    (totalAmbagCollected + totalSalesToPool - totalSpentFromPool - totalRefundedFromPool) * 100
+  ) / 100;
 
   if (loading) {
     return (
@@ -1677,7 +1686,7 @@ export default function TabPage() {
         </div>
       )}
 
-      {/* Add/Edit Entry Modal (Expense or Resale Profit) */}
+      {/* Add/Edit Entry Modal */}
       {isExpenseModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 dark:bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
           <div className="w-full max-w-md bg-white dark:bg-[#121824] border-t sm:border border-black/10 dark:border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto animate-sheet-up shadow-2xl">
@@ -1690,7 +1699,6 @@ export default function TabPage() {
               </button>
             </div>
 
-            {/* Entry Type Toggle: Expense vs Sale/Income */}
             <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-white/[0.04] rounded-xl border border-black/5 dark:border-white/10">
               <button
                 type="button"
@@ -1771,7 +1779,6 @@ export default function TabPage() {
                 </select>
               </div>
 
-              {/* Split Mode Selector */}
               <div>
                 <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-2 block">
                   {isIncome ? "Profit Distribution Mode" : "Split Method"}
@@ -1802,7 +1809,6 @@ export default function TabPage() {
                 </div>
               </div>
 
-              {/* Split Input Area */}
               {splitMode === "equal" ? (
                 <div>
                   <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-2 block">
