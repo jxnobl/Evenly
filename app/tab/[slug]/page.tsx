@@ -8,7 +8,7 @@ import {
   Receipt, Share2, X, Loader2,
   Copy, Edit3, Smartphone, CheckCircle2, Trash2, Pencil,
   History, ChevronDown, ChevronUp, RotateCcw, AlertCircle,
-  UserPlus, Users, Upload
+  UserPlus, Users, Upload, TrendingUp
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -33,6 +33,7 @@ interface FullMember extends Member {
 
 interface DetailedExpense extends Expense {
   title?: string;
+  is_income?: boolean;
 }
 
 interface DetailedPayment extends PaymentRecord {
@@ -95,10 +96,11 @@ export default function TabPage() {
   const [editQrPreview, setEditQrPreview] = useState<string | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
 
-  // Expense form state
+  // Expense & Income / Resale Profit Form State
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
   const [payerId, setPayerId] = useState("");
+  const [isIncome, setIsIncome] = useState(false);
   const [splitMode, setSplitMode] = useState<"equal" | "exact">("equal");
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [exactSplits, setExactSplits] = useState<Record<string, string>>({});
@@ -155,7 +157,7 @@ export default function TabPage() {
 
       const { data: rawExpenses, error: expErr } = await supabase
         .from("expenses")
-        .select("id, title, payer_member_id, amount")
+        .select("id, title, payer_member_id, amount, is_income")
         .eq("tab_id", tabData.id)
         .order("created_at", { ascending: false });
 
@@ -186,6 +188,7 @@ export default function TabPage() {
         title: e.title,
         payerMemberId: e.payer_member_id,
         amount: Number(e.amount),
+        is_income: Boolean(e.is_income),
         splits: splitsByExpense[e.id] || [],
       }));
 
@@ -367,7 +370,25 @@ export default function TabPage() {
     }
   };
 
-  const settlements = computeSettlements(members, expenses, payments);
+  // Convert Income/Sales items into inverse expenses so computeSettlements distributes proceeds to partners
+  const normalizedExpenses: Expense[] = expenses.map((exp) => {
+    if (exp.is_income) {
+      // In income/sale, the collector holds money on behalf of partners
+      // We flip signs so participants are credited and collector owes the proceeds
+      return {
+        id: exp.id,
+        payerMemberId: exp.payerMemberId,
+        amount: -exp.amount,
+        splits: exp.splits.map((s) => ({
+          memberId: s.memberId,
+          amountOwed: -s.amountOwed,
+        })),
+      };
+    }
+    return exp;
+  });
+
+  const settlements = computeSettlements(members, normalizedExpenses, payments);
 
   const getMemberNetBalance = (memberId: string): number => {
     let owedToMember = 0;
@@ -471,10 +492,11 @@ export default function TabPage() {
     }
   };
 
-  const openNewExpenseModal = () => {
+  const openNewExpenseModal = (forceIncome = false) => {
     setEditingExpenseId(null);
     setTitle("");
     setAmount("");
+    setIsIncome(forceIncome);
     setSplitMode("equal");
     if (members.length > 0) {
       setPayerId(poolTreasurerId || members[0].id);
@@ -493,6 +515,7 @@ export default function TabPage() {
     setTitle(exp.title || "");
     setAmount(exp.amount.toString());
     setPayerId(exp.payerMemberId);
+    setIsIncome(Boolean(exp.is_income));
 
     const splitMembers = exp.splits.map((s) => s.memberId);
     setSelectedMembers(splitMembers);
@@ -516,7 +539,7 @@ export default function TabPage() {
   };
 
   const handleDeleteExpense = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this expense?")) return;
+    if (!confirm("Are you sure you want to delete this record?")) return;
 
     try {
       const { error } = await supabase.from("expenses").delete().eq("id", id);
@@ -524,7 +547,7 @@ export default function TabPage() {
       if (inspectingExpense?.id === id) setInspectingExpense(null);
       await fetchTabData();
     } catch (err: any) {
-      alert(err.message || "Failed to delete expense");
+      alert(err.message || "Failed to delete entry");
     }
   };
 
@@ -578,7 +601,7 @@ export default function TabPage() {
     } else {
       if (Math.abs(totalExactAllocated - total) > 0.05) {
         alert(
-          `The sum of custom shares (₱${totalExactAllocated.toFixed(2)}) must match the total expense (₱${total.toFixed(2)}).`
+          `The sum of custom shares (₱${totalExactAllocated.toFixed(2)}) must match the total (₱${total.toFixed(2)}).`
         );
         return;
       }
@@ -590,7 +613,7 @@ export default function TabPage() {
         .filter((s) => s.amount_owed > 0);
 
       if (splitsToInsert.length === 0) {
-        alert("Enter at least one valid amount owed.");
+        alert("Enter at least one valid amount.");
         return;
       }
     }
@@ -604,6 +627,7 @@ export default function TabPage() {
             title: title.trim(),
             amount: total,
             payer_member_id: payerId,
+            is_income: isIncome,
           })
           .eq("id", editingExpenseId);
 
@@ -627,6 +651,7 @@ export default function TabPage() {
               payer_member_id: payerId,
               title: title.trim(),
               amount: total,
+              is_income: isIncome,
             },
           ])
           .select()
@@ -647,7 +672,7 @@ export default function TabPage() {
       await fetchTabData();
     } catch (err: any) {
       console.error(err);
-      alert(err.message || "Failed to save expense");
+      alert(err.message || "Failed to save entry");
     } finally {
       setSubmittingExpense(false);
     }
@@ -693,10 +718,14 @@ export default function TabPage() {
     .reduce((sum, p) => sum + p.amount, 0);
 
   const totalSpentFromPool = expenses
-    .filter((e) => e.payerMemberId === poolTreasurerId)
+    .filter((e) => e.payerMemberId === poolTreasurerId && !e.is_income)
     .reduce((sum, e) => sum + e.amount, 0);
 
-  const poolRemainingBalance = Math.round((totalAmbagCollected - totalSpentFromPool) * 100) / 100;
+  const totalSalesToPool = expenses
+    .filter((e) => e.payerMemberId === poolTreasurerId && e.is_income)
+    .reduce((sum, e) => sum + e.amount, 0);
+
+  const poolRemainingBalance = Math.round((totalAmbagCollected - totalSpentFromPool + totalSalesToPool) * 100) / 100;
 
   if (loading) {
     return (
@@ -921,43 +950,69 @@ export default function TabPage() {
           )}
         </section>
 
-        {/* Expenses List */}
+        {/* Expenses & Sales List */}
         <section className="space-y-3">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-            <Receipt size={14} className="text-emerald-500 dark:text-emerald-400" /> Logged Expenses
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+              <Receipt size={14} className="text-emerald-500 dark:text-emerald-400" /> Logged Entries ({expenses.length})
+            </h2>
+            <button
+              onClick={() => openNewExpenseModal(true)}
+              className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1"
+            >
+              <TrendingUp size={13} /> + Record Sale / Profit
+            </button>
+          </div>
+
           {expenses.length === 0 ? (
             <div className="text-center py-8 text-sm text-slate-400 dark:text-slate-500 animate-fade-in">
-              No expenses recorded yet. Tap below to add one.
+              No entries recorded yet. Tap below to add an expense or sale.
             </div>
           ) : (
             expenses.map((exp) => (
               <div 
                 key={exp.id} 
                 onClick={() => setInspectingExpense(exp)}
-                className="p-4 rounded-xl bg-white dark:bg-white/[0.02] border border-black/5 dark:border-white/5 space-y-2 cursor-pointer hover:border-black/10 dark:hover:border-white/10 active:scale-[0.99] transition duration-200 shadow-sm"
+                className={`p-4 rounded-xl bg-white dark:bg-white/[0.02] border space-y-2 cursor-pointer transition duration-200 shadow-sm ${
+                  exp.is_income 
+                    ? "border-emerald-500/30 hover:border-emerald-500/50 bg-emerald-500/[0.02]" 
+                    : "border-black/5 dark:border-white/5 hover:border-black/10 dark:hover:border-white/10"
+                }`}
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{exp.title || "Expense"}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">{exp.title || "Entry"}</p>
+                      {exp.is_income && (
+                        <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold px-1.5 py-0.2 rounded-full uppercase tracking-wider">
+                          Sale / Profit
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">{getMember(exp.payerMemberId)?.name}</span> paid · {exp.splits.length} split
+                      {exp.is_income ? (
+                        <>Collected by <span className="text-emerald-600 dark:text-emerald-400 font-medium">{getMember(exp.payerMemberId)?.name}</span> · {exp.splits.length} split dividend</>
+                      ) : (
+                        <><span className="text-emerald-600 dark:text-emerald-400 font-medium">{getMember(exp.payerMemberId)?.name}</span> paid · {exp.splits.length} split</>
+                      )}
                     </p>
                   </div>
                   <div className="text-right flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-                    <p className="font-mono font-bold text-emerald-600 dark:text-emerald-400">₱{exp.amount.toFixed(2)}</p>
+                    <p className={`font-mono font-bold ${exp.is_income ? "text-emerald-600 dark:text-emerald-400" : "text-slate-900 dark:text-white"}`}>
+                      {exp.is_income ? `+₱${exp.amount.toFixed(2)}` : `₱${exp.amount.toFixed(2)}`}
+                    </p>
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => openEditExpenseModal(exp)}
                         className="p-1.5 text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-lg active:scale-90 transition"
-                        title="Edit expense"
+                        title="Edit entry"
                       >
                         <Pencil size={14} />
                       </button>
                       <button
                         onClick={() => handleDeleteExpense(exp.id)}
                         className="p-1.5 text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 rounded-lg active:scale-90 transition"
-                        title="Delete expense"
+                        title="Delete entry"
                       >
                         <Trash2 size={14} />
                       </button>
@@ -1032,14 +1087,21 @@ export default function TabPage() {
         )}
       </div>
 
-      {/* Floating CTA */}
+      {/* Floating Dual CTAs */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-slate-50 via-slate-50/90 dark:from-[#0B0F17] dark:via-[#0B0F17]/90 to-transparent z-10 pointer-events-none transition-colors">
-        <div className="max-w-md mx-auto pointer-events-auto">
+        <div className="max-w-md mx-auto pointer-events-auto flex gap-2">
           <button
-            onClick={openNewExpenseModal}
-            className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-[0.98] transition text-sm"
+            onClick={() => openNewExpenseModal(false)}
+            className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-[0.98] transition text-sm"
           >
             <Plus size={18} /> Add Expense
+          </button>
+          <button
+            onClick={() => openNewExpenseModal(true)}
+            className="bg-slate-900 dark:bg-white/[0.08] hover:bg-slate-800 text-white font-bold px-4 py-3.5 rounded-xl flex items-center justify-center gap-1.5 border border-black/10 dark:border-white/10 active:scale-[0.98] transition text-sm"
+            title="Log Resale or Incoming Profit"
+          >
+            <TrendingUp size={16} className="text-emerald-400" /> + Sale / Profit
           </button>
         </div>
       </div>
@@ -1276,17 +1338,25 @@ export default function TabPage() {
         </div>
       )}
 
-      {/* Expense Detail Modal */}
+      {/* Entry Detail Modal */}
       {inspectingExpense && (
         <div className="fixed inset-0 z-50 bg-black/50 dark:bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
           <div className="w-full max-w-md bg-white dark:bg-[#121824] border-t sm:border border-black/10 dark:border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-5 animate-sheet-up shadow-2xl">
             <div className="flex justify-between items-start">
               <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">
-                  {inspectingExpense.title || "Expense Breakdown"}
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">
+                    {inspectingExpense.title || "Entry Breakdown"}
+                  </h3>
+                  {inspectingExpense.is_income && (
+                    <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold px-2 py-0.5 rounded-full uppercase">
+                      Profit / Sale
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Paid by <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{getMember(inspectingExpense.payerMemberId)?.name}</span>
+                  {inspectingExpense.is_income ? "Collected by" : "Paid by"}{" "}
+                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{getMember(inspectingExpense.payerMemberId)?.name}</span>
                 </p>
               </div>
               <button 
@@ -1298,7 +1368,9 @@ export default function TabPage() {
             </div>
 
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-black/5 dark:border-white/5 flex items-center justify-between">
-              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Amount</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                {inspectingExpense.is_income ? "Total Proceeds" : "Total Amount"}
+              </span>
               <span className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
                 ₱{inspectingExpense.amount.toFixed(2)}
               </span>
@@ -1306,7 +1378,7 @@ export default function TabPage() {
 
             <div>
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2.5">
-                Who Split & How Much
+                {inspectingExpense.is_income ? "Profit / Return Allocated To" : "Who Split & How Much"}
               </p>
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {inspectingExpense.splits.map((s) => (
@@ -1320,7 +1392,7 @@ export default function TabPage() {
                       </span>
                       {s.memberId === inspectingExpense.payerMemberId && (
                         <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded font-mono">
-                          Payer
+                          {inspectingExpense.is_income ? "Collector" : "Payer"}
                         </span>
                       )}
                     </div>
@@ -1341,7 +1413,7 @@ export default function TabPage() {
                 }}
                 className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.04] dark:hover:bg-white/[0.08] text-slate-700 dark:text-slate-300 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 active:scale-95 transition"
               >
-                <Pencil size={14} /> Edit Expense
+                <Pencil size={14} /> Edit Entry
               </button>
               <button
                 onClick={() => {
@@ -1399,7 +1471,6 @@ export default function TabPage() {
                 />
               </div>
 
-              {/* QR Code Image Upload */}
               <div>
                 <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5 block">
                   Or Upload QR Code Image
@@ -1454,7 +1525,7 @@ export default function TabPage() {
         </div>
       )}
 
-      {/* Settle Up Modal with Partial Payment Support */}
+      {/* Settle Up Modal */}
       {activeSettlement && (() => {
         const creditor = getMember(activeSettlement.creditorId);
         const debtor = getMember(activeSettlement.debtorId);
@@ -1536,7 +1607,7 @@ export default function TabPage() {
                         src={creditor!.qr_image_url!} 
                         alt="Custom QR" 
                         className="w-full h-full object-contain group-hover:scale-105 transition duration-200"
-                        onError={(e) => {
+                        onError={() => {
                           console.error("Failed to load QR image:", creditor?.qr_image_url);
                         }}
                       />
@@ -1606,25 +1677,59 @@ export default function TabPage() {
         </div>
       )}
 
-      {/* Add/Edit Expense Modal */}
+      {/* Add/Edit Entry Modal (Expense or Resale Profit) */}
       {isExpenseModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 dark:bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
           <div className="w-full max-w-md bg-white dark:bg-[#121824] border-t sm:border border-black/10 dark:border-white/10 rounded-t-3xl sm:rounded-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto animate-sheet-up shadow-2xl">
             <div className="flex justify-between items-center">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                {editingExpenseId ? "Edit Expense" : "Log an Expense"}
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                {editingExpenseId ? "Edit Entry" : isIncome ? "💰 Record Sale / Resale Profit" : "Log an Expense"}
               </h3>
               <button onClick={() => setIsExpenseModalOpen(false)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white p-1 active:scale-90 transition">
                 <X size={20} />
               </button>
             </div>
 
+            {/* Entry Type Toggle: Expense vs Sale/Income */}
+            <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-white/[0.04] rounded-xl border border-black/5 dark:border-white/10">
+              <button
+                type="button"
+                onClick={() => setIsIncome(false)}
+                className={`py-2 rounded-lg text-xs font-semibold transition ${
+                  !isIncome
+                    ? "bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-sm"
+                    : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                Expense (Outflow)
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsIncome(true)}
+                className={`py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 ${
+                  isIncome
+                    ? "bg-emerald-500 text-black shadow-sm"
+                    : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                <TrendingUp size={13} /> Sale / Profit (Inflow)
+              </button>
+            </div>
+
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              {isIncome 
+                ? "Record money received from reselling an item to an external customer. The proceeds are distributed as credit among participating partners."
+                : "Record an expense paid for the group. Participating members will owe their share to the payer."}
+            </p>
+
             <form onSubmit={handleSaveExpense} className="space-y-4">
               <div>
-                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Expense Title</label>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
+                  {isIncome ? "Sale Description" : "Expense Title"}
+                </label>
                 <input
                   type="text"
-                  placeholder="e.g. Samgyup, Grab, Drinks"
+                  placeholder={isIncome ? "e.g. Sold Concert Ticket with markup, Resold Gear" : "e.g. Samgyup, Grab, Drinks"}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   required
@@ -1634,7 +1739,9 @@ export default function TabPage() {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Total Amount (₱)</label>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
+                  {isIncome ? "Total Proceeds / Cash Received (₱)" : "Total Amount (₱)"}
+                </label>
                 <input
                   type="number"
                   step="0.01"
@@ -1648,7 +1755,9 @@ export default function TabPage() {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Who Paid?</label>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
+                  {isIncome ? "Who Received / Collected the Cash?" : "Who Paid?"}
+                </label>
                 <select
                   value={payerId}
                   onChange={(e) => setPayerId(e.target.value)}
@@ -1664,7 +1773,9 @@ export default function TabPage() {
 
               {/* Split Mode Selector */}
               <div>
-                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-2 block">Split Method</label>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-2 block">
+                  {isIncome ? "Profit Distribution Mode" : "Split Method"}
+                </label>
                 <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-white/[0.03] border border-black/5 dark:border-white/10 rounded-xl">
                   <button
                     type="button"
@@ -1694,7 +1805,9 @@ export default function TabPage() {
               {/* Split Input Area */}
               {splitMode === "equal" ? (
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-2 block">Split Between</label>
+                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-2 block">
+                    {isIncome ? "Distribute Profit To" : "Split Between"}
+                  </label>
                   <div className="grid grid-cols-2 gap-2">
                     {members.map((m) => {
                       const isChecked = selectedMembers.includes(m.id);
@@ -1727,7 +1840,7 @@ export default function TabPage() {
               ) : (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase">Custom Amounts</span>
+                    <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase">Custom Shares</span>
                     <span
                       className={`font-mono font-medium ${
                         Math.abs(remainingAmountToAllocate) < 0.01
@@ -1822,7 +1935,7 @@ export default function TabPage() {
                 {submittingExpense ? (
                   <Loader2 size={16} className="animate-spin" />
                 ) : (
-                  editingExpenseId ? "Update Expense" : "Save Expense"
+                  editingExpenseId ? "Update Entry" : isIncome ? "Record Profit / Sale" : "Save Expense"
                 )}
               </button>
             </form>
